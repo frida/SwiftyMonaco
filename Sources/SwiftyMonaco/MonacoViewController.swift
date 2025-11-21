@@ -116,6 +116,13 @@ public class MonacoViewController: ViewController, WKUIDelegate, WKNavigationDel
             languageOptionJS = ""
         }
 
+        // TypeScript
+        let tsExtraLibs = self.delegate?.monacoView(getTypeScriptExtraLibs: self) ?? []
+        let tsExtraLibsJS = tsExtraLibs.map { lib -> String in
+            let b64 = lib.data(using: .utf8)?.base64EncodedString() ?? ""
+            return "monaco.languages.typescript.typescriptDefaults.addExtraLib(atob('\(b64)'));"
+        }.joined(separator: "\n")
+
         // Minimap
         let _minimap = self.delegate?.monacoView(getMinimap: self)
         let minimap = "minimap: { enabled: \(_minimap ?? true) }"
@@ -155,6 +162,7 @@ public class MonacoViewController: ViewController, WKUIDelegate, WKNavigationDel
         """
         (function() {
         \(syntaxJS)
+        \(tsExtraLibsJS)
 
         editor.create({value: atob('\(b64 ?? "")'), automaticLayout: true, theme: "\(theme)"\(languageOptionJS), \(minimap), \(scrollbar), \(smoothCursor), \(cursorBlink), \(fontSize)});
         var meta = document.createElement('meta'); meta.setAttribute('name', 'viewport'); meta.setAttribute('content', 'width=device-width'); document.getElementsByTagName('head')[0].appendChild(meta);
@@ -239,6 +247,7 @@ private extension MonacoViewController {
 public protocol MonacoViewControllerDelegate {
     func monacoView(readText controller: MonacoViewController) -> String
     func monacoView(getSyntax controller: MonacoViewController) -> SyntaxHighlight?
+    func monacoView(getTypeScriptExtraLibs controller: MonacoViewController) -> [String]
     func monacoView(getMinimap controller: MonacoViewController) -> Bool
     func monacoView(getScrollbar controller: MonacoViewController) -> Bool
     func monacoView(getSmoothCursor controller: MonacoViewController) -> Bool

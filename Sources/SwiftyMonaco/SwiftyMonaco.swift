@@ -17,6 +17,7 @@ public struct SwiftyMonaco: ViewControllerRepresentable, MonacoViewControllerDel
     
     var text: Binding<String>
     private var syntax: SyntaxHighlight?
+    private var _tsExtraLibs: [String] = []
     private var _minimap: Bool = true
     private var _scrollbar: Bool = true
     private var _smoothCursor: Bool = false
@@ -62,7 +63,11 @@ public struct SwiftyMonaco: ViewControllerRepresentable, MonacoViewControllerDel
     public func monacoView(getSyntax controller: MonacoViewController) -> SyntaxHighlight? {
         return syntax
     }
-    
+
+    public func monacoView(getTypeScriptExtraLibs controller: MonacoViewController) -> [String] {
+        return _tsExtraLibs
+    }
+
     public func monacoView(getMinimap controller: MonacoViewController) -> Bool {
         return _minimap
     }
@@ -93,6 +98,14 @@ public extension SwiftyMonaco {
     func syntaxHighlight(_ syntax: SyntaxHighlight) -> Self {
         var m = self
         m.syntax = syntax
+        return m
+    }
+}
+
+public extension SwiftyMonaco {
+    func typeScriptExtraLib(_ lib: String) -> Self {
+        var m = self
+        m._tsExtraLibs.append(lib)
         return m
     }
 }
