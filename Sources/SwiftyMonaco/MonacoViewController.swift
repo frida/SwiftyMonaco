@@ -91,17 +91,31 @@ public class MonacoViewController: ViewController, WKUIDelegate, WKNavigationDel
     public func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         // Syntax Highlighting
         let syntax = self.delegate?.monacoView(getSyntax: self)
-        let syntaxJS = syntax != nil ? """
-        // Register a new language
-        monaco.languages.register({ id: 'mySpecialLanguage' });
 
-        // Register a tokens provider for the language
-        monaco.languages.setMonarchTokensProvider('mySpecialLanguage', (function() {
-            \(syntax!.configuration)
-        })());
-        """ : ""
-        let syntaxJS2 = syntax != nil ? ", language: 'mySpecialLanguage'" : ""
-        
+        let syntaxJS: String
+        let languageOptionJS: String
+
+        switch syntax {
+
+        case .monaco(let id):
+            syntaxJS = ""
+            languageOptionJS = ", language: '\(id)'"
+
+        case .custom(let id, let config):
+            syntaxJS = """
+            monaco.languages.register({ id: '\(id)' });
+
+            monaco.languages.setMonarchTokensProvider('\(id)', (function() {
+                \(config)
+            })());
+            """
+            languageOptionJS = ", language: '\(id)'"
+
+        case .none:
+            syntaxJS = ""
+            languageOptionJS = ""
+        }
+
         // Minimap
         let _minimap = self.delegate?.monacoView(getMinimap: self)
         let minimap = "minimap: { enabled: \(_minimap ?? true) }"
@@ -142,7 +156,7 @@ public class MonacoViewController: ViewController, WKUIDelegate, WKNavigationDel
         (function() {
         \(syntaxJS)
 
-        editor.create({value: atob('\(b64 ?? "")'), automaticLayout: true, theme: "\(theme)"\(syntaxJS2), \(minimap), \(scrollbar), \(smoothCursor), \(cursorBlink), \(fontSize)});
+        editor.create({value: atob('\(b64 ?? "")'), automaticLayout: true, theme: "\(theme)"\(languageOptionJS), \(minimap), \(scrollbar), \(smoothCursor), \(cursorBlink), \(fontSize)});
         var meta = document.createElement('meta'); meta.setAttribute('name', 'viewport'); meta.setAttribute('content', 'width=device-width'); document.getElementsByTagName('head')[0].appendChild(meta);
         return true;
         })();
