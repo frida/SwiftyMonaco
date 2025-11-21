@@ -65,6 +65,12 @@ public struct SwiftyMonaco: ViewControllerRepresentable {
             viewController.setText(newText)
             coordinator.lastKnownText = newText
         }
+
+        let newLibs = _tsExtraLibs
+        if coordinator.lastKnownTsExtraLibs != newLibs {
+            viewController.setTypeScriptExtraLibs(newLibs)
+            coordinator.lastKnownTsExtraLibs = newLibs
+        }
     }
 }
 
@@ -136,10 +142,12 @@ public extension SwiftyMonaco {
 public class Coordinator: NSObject, MonacoViewControllerDelegate {
     var parent: SwiftyMonaco
     var lastKnownText: String
+    var lastKnownTsExtraLibs: [String]
 
     init(_ parent: SwiftyMonaco) {
         self.parent = parent
         self.lastKnownText = parent.text.wrappedValue
+        self.lastKnownTsExtraLibs = parent._tsExtraLibs
     }
 
     public func monacoView(readText controller: MonacoViewController) -> String {
@@ -158,7 +166,8 @@ public class Coordinator: NSObject, MonacoViewControllerDelegate {
     }
 
     public func monacoView(getTypeScriptExtraLibs controller: MonacoViewController) -> [String] {
-        parent._tsExtraLibs
+        lastKnownTsExtraLibs = parent._tsExtraLibs
+        return parent._tsExtraLibs
     }
 
     public func monacoView(getMinimap controller: MonacoViewController) -> Bool {

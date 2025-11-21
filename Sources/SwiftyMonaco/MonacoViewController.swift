@@ -53,6 +53,19 @@ public class MonacoViewController: ViewController, WKUIDelegate, WKNavigationDel
         evaluateJavascript("window.editor?.setText(atob('\(b64)'));")
     }
 
+    public func setTypeScriptExtraLibs(_ libs: [String]) {
+        let libsJS = libs.map { lib -> String in
+            let b64 = lib.data(using: .utf8)?.base64EncodedString() ?? ""
+            return "{ content: atob('\(b64)') }"
+        }.joined(separator: ",\n")
+
+        evaluateJavascript("""
+        window.monaco?.languages.typescript.typescriptDefaults.setExtraLibs([
+            \(libsJS)
+        ]);
+        """)
+    }
+
     // MARK: - Dark Mode
     private func updateTheme() {
         evaluateJavascript("""
