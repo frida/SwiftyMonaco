@@ -13,83 +13,58 @@ typealias ViewControllerRepresentable = NSViewControllerRepresentable
 typealias ViewControllerRepresentable = UIViewControllerRepresentable
 #endif
 
-public struct SwiftyMonaco: ViewControllerRepresentable, MonacoViewControllerDelegate {
+public struct SwiftyMonaco: ViewControllerRepresentable {
     
     var text: Binding<String>
-    private var syntax: SyntaxHighlight?
-    private var _tsExtraLibs: [String] = []
-    private var _minimap: Bool = true
-    private var _scrollbar: Bool = true
-    private var _smoothCursor: Bool = false
-    private var _cursorBlink: CursorBlink = .blink
-    private var _fontSize: Int = 12
-    private var _theme: Theme? = nil
+    var syntax: SyntaxHighlight?
+    var _tsExtraLibs: [String] = []
+    var _minimap: Bool = true
+    var _scrollbar: Bool = true
+    var _smoothCursor: Bool = false
+    var _cursorBlink: CursorBlink = .blink
+    var _fontSize: Int = 12
+    var _theme: Theme? = nil
     
     public init(text: Binding<String>) {
         self.text = text
     }
-    
+
+    public func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
+
     #if os(macOS)
     public func makeNSViewController(context: Context) -> MonacoViewController {
         let vc = MonacoViewController()
-        vc.delegate = self
+        vc.delegate = context.coordinator
         return vc
     }
-    
+
     public func updateNSViewController(_ nsViewController: MonacoViewController, context: Context) {
+        doUpdateViewController(nsViewController, coordinator: context.coordinator)
     }
     #endif
     
     #if os(iOS)
     public func makeUIViewController(context: Context) -> MonacoViewController {
         let vc = MonacoViewController()
-        vc.delegate = self
+        vc.delegate = context.coordinator
         return vc
     }
-    
+
     public func updateUIViewController(_ uiViewController: MonacoViewController, context: Context) {
-        
+        doUpdateViewController(nsViewController, coordinator: context.coordinator)
     }
     #endif
-    
-    public func monacoView(readText controller: MonacoViewController) -> String {
-        return self.text.wrappedValue
-    }
-    
-    public func monacoView(controller: MonacoViewController, textDidChange text: String) {
-        self.text.wrappedValue = text
-    }
-    
-    public func monacoView(getSyntax controller: MonacoViewController) -> SyntaxHighlight? {
-        return syntax
-    }
 
-    public func monacoView(getTypeScriptExtraLibs controller: MonacoViewController) -> [String] {
-        return _tsExtraLibs
-    }
+    private func doUpdateViewController(_ viewController: MonacoViewController, coordinator: Coordinator) {
+        coordinator.parent = self
 
-    public func monacoView(getMinimap controller: MonacoViewController) -> Bool {
-        return _minimap
-    }
-    
-    public func monacoView(getScrollbar controller: MonacoViewController) -> Bool {
-        return _scrollbar
-    }
-    
-    public func monacoView(getSmoothCursor controller: MonacoViewController) -> Bool {
-        return _smoothCursor
-    }
-    
-    public func monacoView(getCursorBlink controller: MonacoViewController) -> CursorBlink {
-        return _cursorBlink
-    }
-    
-    public func monacoView(getFontSize controller: MonacoViewController) -> Int {
-        return _fontSize
-    }
-    
-    public func monacoView(getTheme controller: MonacoViewController) -> Theme? {
-        return _theme
+        let newText = text.wrappedValue
+        if coordinator.lastKnownText != newText {
+            viewController.setText(newText)
+            coordinator.lastKnownText = newText
+        }
     }
 }
 
@@ -155,5 +130,58 @@ public extension SwiftyMonaco {
         var m = self
         m._theme = theme
         return m
+    }
+}
+
+public class Coordinator: NSObject, MonacoViewControllerDelegate {
+    var parent: SwiftyMonaco
+    var lastKnownText: String
+
+    init(_ parent: SwiftyMonaco) {
+        self.parent = parent
+        self.lastKnownText = parent.text.wrappedValue
+    }
+
+    public func monacoView(readText controller: MonacoViewController) -> String {
+        let value = parent.text.wrappedValue
+        lastKnownText = value
+        return value
+    }
+
+    public func monacoView(controller: MonacoViewController, textDidChange text: String) {
+        lastKnownText = text
+        parent.text.wrappedValue = text
+    }
+
+    public func monacoView(getSyntax controller: MonacoViewController) -> SyntaxHighlight? {
+        parent.syntax
+    }
+
+    public func monacoView(getTypeScriptExtraLibs controller: MonacoViewController) -> [String] {
+        parent._tsExtraLibs
+    }
+
+    public func monacoView(getMinimap controller: MonacoViewController) -> Bool {
+        parent._minimap
+    }
+
+    public func monacoView(getScrollbar controller: MonacoViewController) -> Bool {
+        parent._scrollbar
+    }
+
+    public func monacoView(getSmoothCursor controller: MonacoViewController) -> Bool {
+        parent._smoothCursor
+    }
+
+    public func monacoView(getCursorBlink controller: MonacoViewController) -> CursorBlink {
+        parent._cursorBlink
+    }
+
+    public func monacoView(getFontSize controller: MonacoViewController) -> Int {
+        parent._fontSize
+    }
+
+    public func monacoView(getTheme controller: MonacoViewController) -> Theme? {
+        parent._theme
     }
 }

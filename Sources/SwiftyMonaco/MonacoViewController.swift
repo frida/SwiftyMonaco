@@ -47,7 +47,12 @@ public class MonacoViewController: ViewController, WKUIDelegate, WKNavigationDel
         let myRequest = URLRequest(url: myURL!)
         webView.load(myRequest)
     }
-    
+
+    public func setText(_ text: String) {
+        let b64 = text.data(using: .utf8)?.base64EncodedString() ?? ""
+        evaluateJavascript("window.editor?.setText(atob('\(b64)'));")
+    }
+
     // MARK: - Dark Mode
     private func updateTheme() {
         evaluateJavascript("""
