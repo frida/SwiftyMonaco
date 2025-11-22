@@ -61,6 +61,10 @@ class MonacoEditorHost {
     updateOptions(options) {
         this.editor.updateOptions(options);
     }
+
+    updateDefaultTypescriptCompilerOptions(options) {
+        typescript.typescriptDefaults.setCompilerOptions({ ...options, allowNonTsExtensions: true });
+    }
 }
 
 function main() {
