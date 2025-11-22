@@ -1,14 +1,14 @@
 const { CleanWebpackPlugin } = require('clean-webpack-plugin');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
-const MonacoWebpackPlugin = require('monaco-editor-webpack-plugin');
 const path = require('path');
 
 module.exports = {
     entry: './src/index.js',
     devtool: 'source-map',
     output: {
-        path: path.resolve(__dirname, '../Sources/SwiftyMonaco/Resources'),
-        filename: 'app.js'
+        path: path.resolve(__dirname, '../Sources/SwiftyMonaco/_Resources'),
+        filename: 'app.js',
+        publicPath: ''
     },
     module: {
         rules: [
@@ -22,12 +22,18 @@ module.exports = {
             {
                 test: /\.ttf$/,
                 use: ['file-loader']
-            }
+            },
+            {
+                test: /\.worker\.js$/,
+                loader: 'worker-loader',
+                options: {
+                    inline: 'no-fallback'
+                },
+            },
         ]
     },
     plugins: [
         new CleanWebpackPlugin(),
-        new MonacoWebpackPlugin(),
         new HtmlWebpackPlugin({
             title: 'Text Editor'
         })

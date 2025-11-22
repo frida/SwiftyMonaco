@@ -60,18 +60,20 @@ public class MonacoViewController: ViewController, WKUIDelegate, WKNavigationDel
         }.joined(separator: ",\n")
 
         evaluateJavascript("""
-        window.monaco?.languages.typescript.typescriptDefaults.setExtraLibs([
-            \(libsJS)
-        ]);
+        window.editor?.withTypescript(typescript => {
+            typescript.typescriptDefaults.setExtraLibs([
+                \(libsJS)
+            ]);
+        });
         """)
     }
 
     // MARK: - Dark Mode
     private func updateTheme() {
         evaluateJavascript("""
-        (function(){
-            monaco.editor.setTheme('\(detectTheme())')
-        })()
+        window.editor?.withMonaco(monaco => {
+            monaco.editor.setTheme('\(detectTheme())');
+        });
         """)
     }
     
@@ -110,7 +112,7 @@ public class MonacoViewController: ViewController, WKUIDelegate, WKNavigationDel
         // Syntax Highlighting
         let syntax = self.delegate?.monacoView(getSyntax: self)
 
-        let syntaxJS: String
+        var syntaxJS: String
         let languageOptionJS: String
 
         switch syntax {
@@ -134,11 +136,30 @@ public class MonacoViewController: ViewController, WKUIDelegate, WKNavigationDel
             languageOptionJS = ""
         }
 
+
+        if case .monaco("typescript") = syntax {
+            syntaxJS += """
+            editor.withTypescript(typescript => {
+                typescript.typescriptDefaults.setCompilerOptions({
+                    target: typescript.ScriptTarget.ESNext,
+                    module: typescript.ModuleKind.ESNext,
+                    typeRoots: ["file:///types"],
+                    allowNonTsExtensions: true,
+                    noEmit: true,
+                });
+            });
+            """
+        }
+
         // TypeScript
         let tsExtraLibs = self.delegate?.monacoView(getTypeScriptExtraLibs: self) ?? []
         let tsExtraLibsJS = tsExtraLibs.map { lib -> String in
             let b64 = lib.data(using: .utf8)?.base64EncodedString() ?? ""
-            return "monaco.languages.typescript.typescriptDefaults.addExtraLib(atob('\(b64)'));"
+            return """
+            editor.withTypescript(typescript => {
+                typescript.typescriptDefaults.addExtraLib(atob('\(b64)'));
+            });
+            """
         }.joined(separator: "\n")
 
         // Minimap
@@ -178,14 +199,14 @@ public class MonacoViewController: ViewController, WKUIDelegate, WKNavigationDel
         let b64 = text.data(using: .utf8)?.base64EncodedString()
         let javascript =
         """
-        (function() {
+        editor.withMonaco(monaco => {
         \(syntaxJS)
         \(tsExtraLibsJS)
 
         editor.create({value: atob('\(b64 ?? "")'), automaticLayout: true, theme: "\(theme)"\(languageOptionJS), \(minimap), \(scrollbar), \(smoothCursor), \(cursorBlink), \(fontSize)});
         var meta = document.createElement('meta'); meta.setAttribute('name', 'viewport'); meta.setAttribute('content', 'width=device-width'); document.getElementsByTagName('head')[0].appendChild(meta);
         return true;
-        })();
+        });
         """
         evaluateJavascript(javascript)
     }
