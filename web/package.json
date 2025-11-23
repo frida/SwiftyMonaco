@@ -3,23 +3,20 @@
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
+  "type": "module",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "webpack --mode=production"
+    "build": "NODE_ENV=production node build.js",
+    "watch": "NODE_ENV=development node build.js"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "devDependencies": {
-    "clean-webpack-plugin": "^4.0.0",
-    "css-loader": "^7.1.2",
-    "file-loader": "^6.0.0",
-    "html-webpack-plugin": "^5.6.5",
-    "monaco-editor": "^0.55.1",
-    "style-loader": "^4.0.0",
-    "webpack": "^5.103.0",
-    "webpack-cli": "^6.0.1",
-    "worker-loader": "^3.0.8"
+    "esbuild": "^0.27.0",
+    "esbuild-plugin-inline-worker": "^0.1.1"
+  },
+  "dependencies": {
+    "monaco-editor": "^0.55.1"
   },
   "private": true
 }

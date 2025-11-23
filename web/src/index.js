@@ -1,11 +1,11 @@
-import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
-import 'monaco-editor/esm/vs/basic-languages/javascript/javascript.contribution'
-import 'monaco-editor/esm/vs/basic-languages/typescript/typescript.contribution'
-import * as typescript from 'monaco-editor/esm/vs/language/typescript/monaco.contribution';
+import * as monaco from 'monaco-editor/esm/vs/editor/editor.api.js';
+import 'monaco-editor/esm/vs/basic-languages/javascript/javascript.contribution.js'
+import 'monaco-editor/esm/vs/basic-languages/typescript/typescript.contribution.js'
+import * as typescript from 'monaco-editor/esm/vs/language/typescript/monaco.contribution.js';
 import './styles.css';
 
-import makeEditorWorker from 'monaco-editor/esm/vs/editor/editor.worker';
-import makeTSWorker from 'monaco-editor/esm/vs/language/typescript/ts.worker';
+import makeEditorWorker from 'monaco-editor/esm/vs/editor/editor.worker.js';
+import makeTSWorker from 'monaco-editor/esm/vs/language/typescript/ts.worker.js';
 
 class MonacoEditorHost {
     constructor() {
@@ -13,11 +13,7 @@ class MonacoEditorHost {
     }
 
     create(options) {
-        const hostElement = document.createElement('div');
-        hostElement.id = 'editor';
-        document.body.appendChild(hostElement);
-
-        this.editor = monaco.editor.create(hostElement, options);
+        this.editor = monaco.editor.create(document.getElementById('editor'), options);
         this.editor.focus();
         this.editor.onDidChangeModelContent((event) => {
             const text = this.editor.getValue();
@@ -67,10 +63,6 @@ class MonacoEditorHost {
     }
 }
 
-function main() {
-    window.editor = new MonacoEditorHost();
-}
-
 window.MonacoEnvironment = {
     getWorker(_moduleId, label) {
         switch (label) {
@@ -83,4 +75,4 @@ window.MonacoEnvironment = {
     }
 };
 
-document.addEventListener('DOMContentLoaded', main);
+window.editor = new MonacoEditorHost();
