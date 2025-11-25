@@ -7,6 +7,14 @@ import './styles.css';
 import makeEditorWorker from 'monaco-editor/esm/vs/editor/editor.worker.js';
 import makeTSWorker from 'monaco-editor/esm/vs/language/typescript/ts.worker.js';
 
+const TOP_LEVEL_EXPORTABLE_KINDS = new Set([
+    'class',
+    'function',
+    'const',
+    'let',
+    'var',
+]);
+
 class MonacoEditorHost {
     constructor() {
         this.contextKeys = {};
@@ -60,6 +68,33 @@ class MonacoEditorHost {
 
     updateDefaultTypescriptCompilerOptions(options) {
         typescript.typescriptDefaults.setCompilerOptions({ ...options, allowNonTsExtensions: true });
+    }
+
+    requestTopLevelSymbols() {
+        this.doRequestTopLevelSymbols();
+    }
+
+    async doRequestTopLevelSymbols() {
+        const model = this.editor.getModel();
+        const uri = model.uri;
+        const fileName = uri.toString();
+
+        const getWorker = (model.getLanguageId() === 'typescript')
+                ? typescript.getTypeScriptWorker
+                : typescript.getJavaScriptWorker;
+        const workerAccessor = await getWorker();
+        const client = await workerAccessor(uri);
+
+        const tree = await client.getNavigationTree(fileName);
+
+        const symbols = [];
+        for (const { kind, text } of tree.childItems) {
+            if (TOP_LEVEL_EXPORTABLE_KINDS.has(kind)) {
+                symbols.push({ kind, text });
+            }
+        }
+
+        window.webkit.messageHandlers.topLevelSymbols.postMessage(symbols);
     }
 }
 

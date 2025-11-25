@@ -17,6 +17,7 @@ public struct SwiftyMonaco: ViewControllerRepresentable {
     
     var text: Binding<String>
     var syntax: SyntaxHighlight?
+    var _introspector: MonacoIntrospector? = nil
     var _tsCompilerOptions: TypeScriptCompilerOptions? = nil
     var _tsExtraLibs: [TypeScriptExtraLib] = []
     var _minimap: Bool = true
@@ -36,9 +37,7 @@ public struct SwiftyMonaco: ViewControllerRepresentable {
 
     #if os(macOS)
     public func makeNSViewController(context: Context) -> MonacoViewController {
-        let vc = MonacoViewController()
-        vc.delegate = context.coordinator
-        return vc
+        return doMakeViewController(context: context)
     }
 
     public func updateNSViewController(_ nsViewController: MonacoViewController, context: Context) {
@@ -48,15 +47,20 @@ public struct SwiftyMonaco: ViewControllerRepresentable {
     
     #if os(iOS)
     public func makeUIViewController(context: Context) -> MonacoViewController {
-        let vc = MonacoViewController()
-        vc.delegate = context.coordinator
-        return vc
+        return doMakeViewController(context: context)
     }
 
     public func updateUIViewController(_ uiViewController: MonacoViewController, context: Context) {
         doUpdateViewController(nsViewController, coordinator: context.coordinator)
     }
     #endif
+
+    private func doMakeViewController(context: Context) -> MonacoViewController {
+        let vc = MonacoViewController()
+        vc.delegate = context.coordinator
+        _introspector?.controller = vc
+        return vc
+    }
 
     private func doUpdateViewController(_ viewController: MonacoViewController, coordinator: Coordinator) {
         coordinator.parent = self
@@ -87,6 +91,14 @@ public extension SwiftyMonaco {
         var m = self
         m.syntax = syntax
         return m
+    }
+}
+
+public extension SwiftyMonaco {
+    public func introspector(_ introspector: MonacoIntrospector) -> Self {
+        var copy = self
+        copy._introspector = introspector
+        return copy
     }
 }
 
@@ -152,6 +164,34 @@ public extension SwiftyMonaco {
         m._theme = theme
         return m
     }
+}
+
+@MainActor
+public final class MonacoIntrospector: ObservableObject {
+    fileprivate weak var controller: MonacoViewController?
+
+    public init() {}
+
+    public func topLevelSymbols() async -> [MonacoTopLevelSymbol] {
+        guard let controller else {
+            assertionFailure("MonacoIntrospector is not attached")
+            return []
+        }
+        return await controller.topLevelSymbols()
+    }
+}
+
+public struct MonacoTopLevelSymbol: Hashable {
+    public let kind: MonacoSymbolKind
+    public let text: String
+}
+
+public enum MonacoSymbolKind: String, Hashable, Codable {
+    case `class`
+    case function
+    case `const`
+    case `let`
+    case `var`
 }
 
 public class Coordinator: NSObject, MonacoViewControllerDelegate {

@@ -19,12 +19,15 @@ public class MonacoViewController: ViewController, WKUIDelegate, WKNavigationDel
     var delegate: MonacoViewControllerDelegate?
     
     var webView: WKWebView!
+
+    private var pendingTopLevelSymbolsContinuations: [CheckedContinuation<[MonacoTopLevelSymbol], Never>] = []
     
     public override func loadView() {
         let webConfiguration = WKWebViewConfiguration()
         let contentController = webConfiguration.userContentController
 
         contentController.add(UpdateTextScriptHandler(self), name: "updateText")
+        contentController.add(TopLevelSymbolsScriptHandler(self), name: "topLevelSymbols")
 
         let consoleHookJS = """
         (function() {
@@ -101,6 +104,16 @@ public class MonacoViewController: ViewController, WKUIDelegate, WKNavigationDel
     public func setText(_ text: String) {
         let b64 = text.data(using: .utf8)?.base64EncodedString() ?? ""
         evaluateJavascript("window.editor?.setText(atob('\(b64)'));")
+    }
+
+    public func topLevelSymbols() async -> [MonacoTopLevelSymbol] {
+        await withCheckedContinuation { continuation in
+            pendingTopLevelSymbolsContinuations.append(continuation)
+
+            if pendingTopLevelSymbolsContinuations.count == 1 {
+                evaluateJavascript("window.editor.requestTopLevelSymbols();")
+            }
+        }
     }
 
     public func setTypeScriptCompilerOptions(_ options: TypeScriptCompilerOptions?) {
@@ -324,6 +337,42 @@ private extension MonacoViewController {
             }
 
             parent.delegate?.monacoView(controller: parent, textDidChange: text)
+        }
+    }
+
+    final class TopLevelSymbolsScriptHandler: NSObject, WKScriptMessageHandler {
+        private unowned let parent: MonacoViewController
+
+        init(_ parent: MonacoViewController) {
+            self.parent = parent
+        }
+
+        func userContentController(
+            _ userContentController: WKUserContentController,
+            didReceive message: WKScriptMessage
+        ) {
+            guard let array = message.body as? [Any] else {
+                fatalError("Unexpected message body")
+            }
+
+            let symbols: [MonacoTopLevelSymbol] = array.map { element in
+                guard let dict = element as? [String: Any],
+                      let rawKind = dict["kind"] as? String,
+                      let text = dict["text"] as? String else {
+                    fatalError("Unexpected message body")
+                }
+
+                let kind = MonacoSymbolKind(rawValue: rawKind)!
+
+                return MonacoTopLevelSymbol(kind: kind, text: text)
+            }
+
+            let continuations = parent.pendingTopLevelSymbolsContinuations
+            parent.pendingTopLevelSymbolsContinuations.removeAll()
+
+            for continuation in continuations {
+                continuation.resume(returning: symbols)
+            }
         }
     }
 
