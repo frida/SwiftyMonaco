@@ -23,7 +23,7 @@ public struct TypeScriptCompilerOptions: Equatable {
     }
 }
 
-public struct TypeScriptExtraLib: Equatable {
+public struct MonacoExtraLib: Equatable {
     public let content: String
     public let filePath: String
 
@@ -229,5 +229,13 @@ extension TypeScriptCompilerOptions {
                moduleResolution == nil &&
                (typeRoots?.isEmpty ?? true) &&
                strict == nil
+    }
+}
+
+extension MonacoExtraLib {
+    func toJavaScriptObjectLiteral() -> String {
+        let b64 = content.data(using: .utf8)!.base64EncodedString()
+        let escapedPath = filePath.replacingOccurrences(of: "'", with: "\\'")
+        return "{ content: atob('\(b64)'), filePath: '\(escapedPath)' }"
     }
 }

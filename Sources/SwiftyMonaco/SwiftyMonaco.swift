@@ -19,7 +19,9 @@ public struct SwiftyMonaco: ViewControllerRepresentable {
     var syntax: SyntaxHighlight?
     var _introspector: MonacoIntrospector? = nil
     var _tsCompilerOptions: TypeScriptCompilerOptions? = nil
-    var _tsExtraLibs: [TypeScriptExtraLib] = []
+    var _tsExtraLibs: [MonacoExtraLib] = []
+    var _jsCompilerOptions: TypeScriptCompilerOptions? = nil
+    var _jsExtraLibs: [MonacoExtraLib] = []
     var _minimap: Bool = true
     var _scrollbar: Bool = true
     var _smoothCursor: Bool = false
@@ -71,16 +73,28 @@ public struct SwiftyMonaco: ViewControllerRepresentable {
             coordinator.lastKnownText = newText
         }
 
-        let newOptions = _tsCompilerOptions
-        if coordinator.lastKnownCompilerOptions != newOptions {
-            viewController.setTypeScriptCompilerOptions(newOptions)
-            coordinator.lastKnownCompilerOptions = newOptions
+        let newTsOpts = _tsCompilerOptions
+        if coordinator.lastKnownTsCompilerOptions != newTsOpts {
+            viewController.setTypeScriptCompilerOptions(newTsOpts)
+            coordinator.lastKnownTsCompilerOptions = newTsOpts
         }
 
-        let newLibs = _tsExtraLibs
-        if coordinator.lastKnownTsExtraLibs != newLibs {
-            viewController.setTypeScriptExtraLibs(newLibs)
-            coordinator.lastKnownTsExtraLibs = newLibs
+        let newTsLibs = _tsExtraLibs
+        if coordinator.lastKnownTsExtraLibs != newTsLibs {
+            viewController.setTypeScriptExtraLibs(newTsLibs)
+            coordinator.lastKnownTsExtraLibs = newTsLibs
+        }
+
+        let newJsOpts = _jsCompilerOptions
+        if coordinator.lastKnownJsCompilerOptions != newJsOpts {
+            viewController.setJavaScriptCompilerOptions(newJsOpts)
+            coordinator.lastKnownJsCompilerOptions = newJsOpts
+        }
+
+        let newJsLibs = _jsExtraLibs
+        if coordinator.lastKnownJsExtraLibs != newJsLibs {
+            viewController.setJavaScriptExtraLibs(newJsLibs)
+            coordinator.lastKnownJsExtraLibs = newJsLibs
         }
     }
 }
@@ -113,7 +127,23 @@ public extension SwiftyMonaco {
 public extension SwiftyMonaco {
     func typescriptExtraLib(_ lib: String, named filePath: String) -> Self {
         var copy = self
-        copy._tsExtraLibs.append(TypeScriptExtraLib(lib, filePath: filePath))
+        copy._tsExtraLibs.append(MonacoExtraLib(lib, filePath: filePath))
+        return copy
+    }
+}
+
+public extension SwiftyMonaco {
+    func javascriptCompilerOptions(_ options: TypeScriptCompilerOptions) -> Self {
+        var copy = self
+        copy._jsCompilerOptions = options
+        return copy
+    }
+}
+
+public extension SwiftyMonaco {
+    func javascriptExtraLib(_ lib: String, named filePath: String) -> Self {
+        var copy = self
+        copy._jsExtraLibs.append(MonacoExtraLib(lib, filePath: filePath))
         return copy
     }
 }
@@ -197,14 +227,18 @@ public enum MonacoSymbolKind: String, Hashable, Codable {
 public class Coordinator: NSObject, MonacoViewControllerDelegate {
     var parent: SwiftyMonaco
     var lastKnownText: String
-    var lastKnownCompilerOptions: TypeScriptCompilerOptions?
-    var lastKnownTsExtraLibs: [TypeScriptExtraLib]
+    var lastKnownTsCompilerOptions: TypeScriptCompilerOptions?
+    var lastKnownTsExtraLibs: [MonacoExtraLib]
+    var lastKnownJsCompilerOptions: TypeScriptCompilerOptions?
+    var lastKnownJsExtraLibs: [MonacoExtraLib]
 
     init(_ parent: SwiftyMonaco) {
         self.parent = parent
         self.lastKnownText = parent.text.wrappedValue
-        self.lastKnownCompilerOptions = parent._tsCompilerOptions
+        self.lastKnownTsCompilerOptions = parent._tsCompilerOptions
         self.lastKnownTsExtraLibs = parent._tsExtraLibs
+        self.lastKnownJsCompilerOptions = parent._jsCompilerOptions
+        self.lastKnownJsExtraLibs = parent._jsExtraLibs
     }
 
     public func monacoView(readText controller: MonacoViewController) -> String {
@@ -226,9 +260,16 @@ public class Coordinator: NSObject, MonacoViewControllerDelegate {
         parent._tsCompilerOptions
     }
 
-    public func monacoView(getTypeScriptExtraLibs controller: MonacoViewController) -> [TypeScriptExtraLib] {
-        lastKnownTsExtraLibs = parent._tsExtraLibs
+    public func monacoView(getTypeScriptExtraLibs controller: MonacoViewController) -> [MonacoExtraLib] {
         return parent._tsExtraLibs
+    }
+
+    public func monacoView(getJavaScriptCompilerOptions controller: MonacoViewController) -> TypeScriptCompilerOptions? {
+        parent._jsCompilerOptions
+    }
+
+    public func monacoView(getJavaScriptExtraLibs controller: MonacoViewController) -> [MonacoExtraLib] {
+        return parent._jsExtraLibs
     }
 
     public func monacoView(getMinimap controller: MonacoViewController) -> Bool {

@@ -121,16 +121,27 @@ public class MonacoViewController: ViewController, WKUIDelegate, WKNavigationDel
         evaluateJavascript("window.editor?.updateDefaultTypescriptCompilerOptions(\(literal));")
     }
 
-    public func setTypeScriptExtraLibs(_ libs: [TypeScriptExtraLib]) {
-        let libsJS = libs.map { lib -> String in
-            let b64 = lib.content.data(using: .utf8)?.base64EncodedString() ?? ""
-            let escapedPath = lib.filePath.replacingOccurrences(of: "'", with: "\\'")
-            return "{ content: atob('\(b64)'), filePath: '\(escapedPath)' }"
-        }.joined(separator: ",\n")
-
+    public func setTypeScriptExtraLibs(_ libs: [MonacoExtraLib]) {
+        let libsJS = libs.map { $0.toJavaScriptObjectLiteral() }.joined(separator: ",\n                ")
         evaluateJavascript("""
         window.editor?.withTypescript(typescript => {
             typescript.typescriptDefaults.setExtraLibs([
+                \(libsJS)
+            ]);
+        });
+        """)
+    }
+
+    public func setJavaScriptCompilerOptions(_ options: TypeScriptCompilerOptions?) {
+        let literal = options?.toJavaScriptObjectLiteral() ?? "{}"
+        evaluateJavascript("window.editor?.updateDefaultJavascriptCompilerOptions(\(literal));")
+    }
+
+    public func setJavaScriptExtraLibs(_ libs: [MonacoExtraLib]) {
+        let libsJS = libs.map { $0.toJavaScriptObjectLiteral() }.joined(separator: ",\n                ")
+        evaluateJavascript("""
+        window.editor?.withTypescript(typescript => {
+            typescript.javascriptDefaults.setExtraLibs([
                 \(libsJS)
             ]);
         });
@@ -205,7 +216,7 @@ public class MonacoViewController: ViewController, WKUIDelegate, WKNavigationDel
             languageOptionJS = ""
         }
 
-        // TypeScript
+        // TypeScript + JavaScript
         if let options = delegate?.monacoView(getTypeScriptCompilerOptions: self),
            !options.isEmpty {
 
@@ -213,16 +224,36 @@ public class MonacoViewController: ViewController, WKUIDelegate, WKNavigationDel
             syntaxJS += "editor.updateDefaultTypescriptCompilerOptions(\(literal));"
         }
 
-        let tsExtraLibs = self.delegate?.monacoView(getTypeScriptExtraLibs: self) ?? []
-        let tsExtraLibsJS = tsExtraLibs.map { lib -> String in
-            let b64 = lib.content.data(using: .utf8)?.base64EncodedString() ?? ""
-            let escapedPath = lib.filePath.replacingOccurrences(of: "'", with: "\\'")
-            return """
+        if let extraLibs = self.delegate?.monacoView(getTypeScriptExtraLibs: self),
+           !extraLibs.isEmpty {
+            let literals = extraLibs.map { $0.toJavaScriptObjectLiteral() }.joined(separator: ",\n                    ")
+            syntaxJS += """
             editor.withTypescript(typescript => {
-                typescript.typescriptDefaults.addExtraLib(atob('\(b64)'), '\(escapedPath)');
+                typescript.typescriptDefaults.setExtraLibs([
+                    \(literals)
+                ]);
             });
             """
-        }.joined(separator: "\n")
+        }
+
+        if let options = delegate?.monacoView(getJavaScriptCompilerOptions: self),
+           !options.isEmpty {
+
+            let literal = options.toJavaScriptObjectLiteral()
+            syntaxJS += "editor.updateDefaultJavascriptCompilerOptions(\(literal));"
+        }
+
+        if let extraLibs = self.delegate?.monacoView(getJavaScriptExtraLibs: self),
+           !extraLibs.isEmpty {
+            let literals = extraLibs.map { $0.toJavaScriptObjectLiteral() }.joined(separator: ",\n                    ")
+            syntaxJS += """
+            editor.withTypescript(typescript => {
+                typescript.javascriptDefaults.setExtraLibs([
+                    \(literals)
+                ]);
+            });
+            """
+        }
 
         // Minimap
         let _minimap = self.delegate?.monacoView(getMinimap: self)
@@ -263,7 +294,6 @@ public class MonacoViewController: ViewController, WKUIDelegate, WKNavigationDel
         """
         editor.withMonaco(monaco => {
         \(syntaxJS)
-        \(tsExtraLibsJS)
 
         editor.create({value: atob('\(b64 ?? "")'), automaticLayout: true, theme: "\(theme)"\(languageOptionJS), \(minimap), \(scrollbar), \(smoothCursor), \(cursorBlink), \(fontSize)});
         });
@@ -409,7 +439,9 @@ public protocol MonacoViewControllerDelegate {
     func monacoView(readText controller: MonacoViewController) -> String
     func monacoView(getSyntax controller: MonacoViewController) -> SyntaxHighlight?
     func monacoView(getTypeScriptCompilerOptions controller: MonacoViewController) -> TypeScriptCompilerOptions?
-    func monacoView(getTypeScriptExtraLibs controller: MonacoViewController) -> [TypeScriptExtraLib]
+    func monacoView(getTypeScriptExtraLibs controller: MonacoViewController) -> [MonacoExtraLib]
+    func monacoView(getJavaScriptCompilerOptions controller: MonacoViewController) -> TypeScriptCompilerOptions?
+    func monacoView(getJavaScriptExtraLibs controller: MonacoViewController) -> [MonacoExtraLib]
     func monacoView(getMinimap controller: MonacoViewController) -> Bool
     func monacoView(getScrollbar controller: MonacoViewController) -> Bool
     func monacoView(getSmoothCursor controller: MonacoViewController) -> Bool

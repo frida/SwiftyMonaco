@@ -15,6 +15,9 @@ const TOP_LEVEL_EXPORTABLE_KINDS = new Set([
     'var',
 ]);
 
+const defaultTypescriptCompilerOptions = { ...typescript.typescriptDefaults.getCompilerOptions() };
+const defaultJavascriptCompilerOptions = { ...typescript.javascriptDefaults.getCompilerOptions() };
+
 class MonacoEditorHost {
     constructor() {
         this.contextKeys = {};
@@ -67,7 +70,11 @@ class MonacoEditorHost {
     }
 
     updateDefaultTypescriptCompilerOptions(options) {
-        typescript.typescriptDefaults.setCompilerOptions({ ...options, allowNonTsExtensions: true });
+        typescript.typescriptDefaults.setCompilerOptions({ ...defaultTypescriptCompilerOptions, ...options });
+    }
+
+    updateDefaultJavascriptCompilerOptions(options) {
+        typescript.javascriptDefaults.setCompilerOptions({ ...defaultJavascriptCompilerOptions, ...options });
     }
 
     requestTopLevelSymbols() {
