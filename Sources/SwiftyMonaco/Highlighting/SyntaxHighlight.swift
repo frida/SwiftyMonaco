@@ -7,7 +7,7 @@
 
 import Foundation
 
-public enum SyntaxHighlight {
+public enum SyntaxHighlight: Equatable {
 
     /// Uses Monaco's built-in language support
     /// e.g. "javascript", "cpp", "python"

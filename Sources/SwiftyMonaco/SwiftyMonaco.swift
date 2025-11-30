@@ -14,23 +14,13 @@ typealias ViewControllerRepresentable = UIViewControllerRepresentable
 #endif
 
 public struct SwiftyMonaco: ViewControllerRepresentable {
-    
     var text: Binding<String>
-    var syntax: SyntaxHighlight?
+    var profile: MonacoEditorProfile
     var _introspector: MonacoIntrospector? = nil
-    var _tsCompilerOptions: TypeScriptCompilerOptions? = nil
-    var _tsExtraLibs: [MonacoExtraLib] = []
-    var _jsCompilerOptions: TypeScriptCompilerOptions? = nil
-    var _jsExtraLibs: [MonacoExtraLib] = []
-    var _minimap: Bool = true
-    var _scrollbar: Bool = true
-    var _smoothCursor: Bool = false
-    var _cursorBlink: CursorBlink = .blink
-    var _fontSize: Int = 12
-    var _theme: Theme? = nil
-    
-    public init(text: Binding<String>) {
+
+    public init(text: Binding<String>, profile: MonacoEditorProfile = MonacoEditorProfile()) {
         self.text = text
+        self.profile = profile
     }
 
     public func makeCoordinator() -> Coordinator {
@@ -46,14 +36,14 @@ public struct SwiftyMonaco: ViewControllerRepresentable {
         doUpdateViewController(nsViewController, coordinator: context.coordinator)
     }
     #endif
-    
+
     #if os(iOS)
     public func makeUIViewController(context: Context) -> MonacoViewController {
         return doMakeViewController(context: context)
     }
 
     public func updateUIViewController(_ uiViewController: MonacoViewController, context: Context) {
-        doUpdateViewController(nsViewController, coordinator: context.coordinator)
+        doUpdateViewController(uiViewController, coordinator: context.coordinator)
     }
     #endif
 
@@ -68,43 +58,28 @@ public struct SwiftyMonaco: ViewControllerRepresentable {
         coordinator.parent = self
 
         let newText = text.wrappedValue
-        if coordinator.lastKnownText != newText {
-            viewController.setText(newText)
+        let newProfile = profile
+
+        if coordinator.lastKnownText != newText || coordinator.lastKnownProfile != newProfile {
             coordinator.lastKnownText = newText
+            coordinator.lastKnownProfile = newProfile
+            viewController.reconfigure()
         }
+    }
+}
 
-        let newTsOpts = _tsCompilerOptions
-        if coordinator.lastKnownTsCompilerOptions != newTsOpts {
-            viewController.setTypeScriptCompilerOptions(newTsOpts)
-            coordinator.lastKnownTsCompilerOptions = newTsOpts
-        }
-
-        let newTsLibs = _tsExtraLibs
-        if coordinator.lastKnownTsExtraLibs != newTsLibs {
-            viewController.setTypeScriptExtraLibs(newTsLibs)
-            coordinator.lastKnownTsExtraLibs = newTsLibs
-        }
-
-        let newJsOpts = _jsCompilerOptions
-        if coordinator.lastKnownJsCompilerOptions != newJsOpts {
-            viewController.setJavaScriptCompilerOptions(newJsOpts)
-            coordinator.lastKnownJsCompilerOptions = newJsOpts
-        }
-
-        let newJsLibs = _jsExtraLibs
-        if coordinator.lastKnownJsExtraLibs != newJsLibs {
-            viewController.setJavaScriptExtraLibs(newJsLibs)
-            coordinator.lastKnownJsExtraLibs = newJsLibs
-        }
+public extension SwiftyMonaco {
+    static func prewarmPool(profile: MonacoEditorProfile, count: Int = 1) {
+        MonacoWebViewPool.shared.prewarm(profile: profile, count: count)
     }
 }
 
 // MARK: - Modifiers
 public extension SwiftyMonaco {
     func syntaxHighlight(_ syntax: SyntaxHighlight) -> Self {
-        var m = self
-        m.syntax = syntax
-        return m
+        var copy = self
+        copy.profile.syntax = syntax
+        return copy
     }
 }
 
@@ -119,7 +94,7 @@ public extension SwiftyMonaco {
 public extension SwiftyMonaco {
     func typescriptCompilerOptions(_ options: TypeScriptCompilerOptions) -> Self {
         var copy = self
-        copy._tsCompilerOptions = options
+        copy.profile.tsCompilerOptions = options
         return copy
     }
 }
@@ -127,7 +102,7 @@ public extension SwiftyMonaco {
 public extension SwiftyMonaco {
     func typescriptExtraLib(_ lib: String, named filePath: String) -> Self {
         var copy = self
-        copy._tsExtraLibs.append(MonacoExtraLib(lib, filePath: filePath))
+        copy.profile.tsExtraLibs.append(MonacoExtraLib(lib, filePath: filePath))
         return copy
     }
 }
@@ -135,7 +110,7 @@ public extension SwiftyMonaco {
 public extension SwiftyMonaco {
     func javascriptCompilerOptions(_ options: TypeScriptCompilerOptions) -> Self {
         var copy = self
-        copy._jsCompilerOptions = options
+        copy.profile.jsCompilerOptions = options
         return copy
     }
 }
@@ -143,56 +118,56 @@ public extension SwiftyMonaco {
 public extension SwiftyMonaco {
     func javascriptExtraLib(_ lib: String, named filePath: String) -> Self {
         var copy = self
-        copy._jsExtraLibs.append(MonacoExtraLib(lib, filePath: filePath))
+        copy.profile.jsExtraLibs.append(MonacoExtraLib(lib, filePath: filePath))
         return copy
     }
 }
 
 public extension SwiftyMonaco {
     func minimap(_ enabled: Bool) -> Self {
-        var m = self
-        m._minimap = enabled
-        return m
+        var copy = self
+        copy.profile.minimap = enabled
+        return copy
     }
 }
 
 public extension SwiftyMonaco {
     func scrollbar(_ enabled: Bool) -> Self {
-        var m = self
-        m._scrollbar = enabled
-        return m
+        var copy = self
+        copy.profile.scrollbar = enabled
+        return copy
     }
 }
 
 public extension SwiftyMonaco {
     func smoothCursor(_ enabled: Bool) -> Self {
-        var m = self
-        m._smoothCursor = enabled
-        return m
+        var copy = self
+        copy.profile.smoothCursor = enabled
+        return copy
     }
 }
 
 public extension SwiftyMonaco {
     func cursorBlink(_ style: CursorBlink) -> Self {
-        var m = self
-        m._cursorBlink = style
-        return m
+        var copy = self
+        copy.profile.cursorBlink = style
+        return copy
     }
 }
 
 public extension SwiftyMonaco {
     func fontSize(_ size: Int) -> Self {
-        var m = self
-        m._fontSize = size
-        return m
+        var copy = self
+        copy.profile.fontSize = size
+        return copy
     }
 }
 
 public extension SwiftyMonaco {
     func theme(_ theme: Theme) -> Self {
-        var m = self
-        m._theme = theme
-        return m
+        var copy = self
+        copy.profile.theme = theme
+        return copy
     }
 }
 
@@ -227,18 +202,18 @@ public enum MonacoSymbolKind: String, Hashable, Codable {
 public class Coordinator: NSObject, MonacoViewControllerDelegate {
     var parent: SwiftyMonaco
     var lastKnownText: String
-    var lastKnownTsCompilerOptions: TypeScriptCompilerOptions?
-    var lastKnownTsExtraLibs: [MonacoExtraLib]
-    var lastKnownJsCompilerOptions: TypeScriptCompilerOptions?
-    var lastKnownJsExtraLibs: [MonacoExtraLib]
+    var lastKnownProfile: MonacoEditorProfile
 
     init(_ parent: SwiftyMonaco) {
         self.parent = parent
         self.lastKnownText = parent.text.wrappedValue
-        self.lastKnownTsCompilerOptions = parent._tsCompilerOptions
-        self.lastKnownTsExtraLibs = parent._tsExtraLibs
-        self.lastKnownJsCompilerOptions = parent._jsCompilerOptions
-        self.lastKnownJsExtraLibs = parent._jsExtraLibs
+        self.lastKnownProfile = parent.profile
+    }
+
+    public func monacoView(getProfile controller: MonacoViewController) -> MonacoEditorProfile {
+        let profile = parent.profile
+        lastKnownProfile = profile
+        return profile
     }
 
     public func monacoView(readText controller: MonacoViewController) -> String {
@@ -250,50 +225,6 @@ public class Coordinator: NSObject, MonacoViewControllerDelegate {
     public func monacoView(controller: MonacoViewController, textDidChange text: String) {
         lastKnownText = text
         parent.text.wrappedValue = text
-    }
-
-    public func monacoView(getSyntax controller: MonacoViewController) -> SyntaxHighlight? {
-        parent.syntax
-    }
-
-    public func monacoView(getTypeScriptCompilerOptions controller: MonacoViewController) -> TypeScriptCompilerOptions? {
-        parent._tsCompilerOptions
-    }
-
-    public func monacoView(getTypeScriptExtraLibs controller: MonacoViewController) -> [MonacoExtraLib] {
-        return parent._tsExtraLibs
-    }
-
-    public func monacoView(getJavaScriptCompilerOptions controller: MonacoViewController) -> TypeScriptCompilerOptions? {
-        parent._jsCompilerOptions
-    }
-
-    public func monacoView(getJavaScriptExtraLibs controller: MonacoViewController) -> [MonacoExtraLib] {
-        return parent._jsExtraLibs
-    }
-
-    public func monacoView(getMinimap controller: MonacoViewController) -> Bool {
-        parent._minimap
-    }
-
-    public func monacoView(getScrollbar controller: MonacoViewController) -> Bool {
-        parent._scrollbar
-    }
-
-    public func monacoView(getSmoothCursor controller: MonacoViewController) -> Bool {
-        parent._smoothCursor
-    }
-
-    public func monacoView(getCursorBlink controller: MonacoViewController) -> CursorBlink {
-        parent._cursorBlink
-    }
-
-    public func monacoView(getFontSize controller: MonacoViewController) -> Int {
-        parent._fontSize
-    }
-
-    public func monacoView(getTheme controller: MonacoViewController) -> Theme? {
-        parent._theme
     }
 
     public func monacoView(controller: MonacoViewController,

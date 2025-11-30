@@ -20,33 +20,61 @@ const defaultJavascriptCompilerOptions = { ...typescript.javascriptDefaults.getC
 
 class MonacoEditorHost {
     constructor() {
+        this.compilerConfig = {
+            tsCompilerOptions: null,
+            jsCompilerOptions: null,
+        };
         this.contextKeys = {};
     }
 
     create(options) {
-        this.editor = monaco.editor.create(document.getElementById('editor'), options);
+        const baseOptions = {
+            automaticLayout: true,
+        };
+
+        this.editor = monaco.editor.create(document.getElementById('editor'), { ...baseOptions, ...options });
         this.editor.focus();
         this.editor.onDidChangeModelContent((event) => {
             const text = this.editor.getValue();
-            window.webkit?.messageHandlers?.updateText.postMessage(btoa(text));
+            window.webkit?.messageHandlers?.updateText?.postMessage(btoa(text));
         });
     }
 
-    withMonaco(fn) {
-        fn(monaco, this.editor);
+    updateOptions(options) {
+        this.editor.updateOptions(options);
     }
 
-    withTypescript(fn) {
-        fn(typescript);
+    updateDefaultTypescriptCompilerOptions(options) {
+        typescript.typescriptDefaults.setCompilerOptions({ ...defaultTypescriptCompilerOptions, ...options });
+    }
+
+    updateDefaultTypescriptExtraLibs(libs) {
+        typescript.typescriptDefaults.setExtraLibs(libs);
+    }
+
+    updateDefaultJavascriptCompilerOptions(options) {
+        typescript.javascriptDefaults.setCompilerOptions({ ...defaultJavascriptCompilerOptions, ...options });
+    }
+
+    updateDefaultJavascriptExtraLibs(libs) {
+        typescript.javascriptDefaults.setExtraLibs(libs);
+    }
+
+    clearText() {
+        this.editor?.setValue('');
+    }
+
+    setText(text) {
+        this.editor.setValue(text);
+    }
+
+    focus() {
+        this.editor.focus();
     }
 
     createContextKey(key, defaultValue) {
         const contextKey = this.editor.createContextKey(key, defaultValue);
         this.contextKeys[key] = contextKey;
-    }
-
-    focus() {
-        this.editor.focus();
     }
 
     getContextKey(key) {
@@ -61,24 +89,12 @@ class MonacoEditorHost {
         this.contextKeys[key].set(value);
     }
 
-    setText(text) {
-        this.editor.setValue(text);
-    }
-
-    updateOptions(options) {
-        this.editor.updateOptions(options);
-    }
-
-    updateDefaultTypescriptCompilerOptions(options) {
-        typescript.typescriptDefaults.setCompilerOptions({ ...defaultTypescriptCompilerOptions, ...options });
-    }
-
-    updateDefaultJavascriptCompilerOptions(options) {
-        typescript.javascriptDefaults.setCompilerOptions({ ...defaultJavascriptCompilerOptions, ...options });
-    }
-
     requestTopLevelSymbols() {
         this.doRequestTopLevelSymbols();
+    }
+
+    withMonaco(fn) {
+        fn(monaco, this.editor);
     }
 
     async doRequestTopLevelSymbols() {
