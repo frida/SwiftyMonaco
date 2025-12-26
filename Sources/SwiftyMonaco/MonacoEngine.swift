@@ -133,20 +133,74 @@ final class MonacoEngine: NSObject {
     ) -> String? {
         let previousProfile = lastProfile
 
-        var syntaxJS = ""
-        var languageOptionJS = ""
+        var configurationJS = ""
         var needMonaco = false
 
+        func tsOptionsLiteral(_ opts: TypeScriptCompilerOptions?) -> String {
+            opts?.toJavaScriptObjectLiteral() ?? "{}"
+        }
+
+        if previousProfile?.tsCompilerOptions != profile.tsCompilerOptions {
+            let literal = tsOptionsLiteral(profile.tsCompilerOptions)
+            configurationJS += "editor.updateDefaultTypescriptCompilerOptions(\(literal));\n"
+        }
+
+        if previousProfile?.tsExtraLibs != profile.tsExtraLibs {
+            if profile.tsExtraLibs.isEmpty {
+                configurationJS += "editor.updateDefaultTypescriptExtraLibs([]);\n"
+            } else {
+                let libs = profile.tsExtraLibs
+                    .map { $0.toJavaScriptObjectLiteral() }
+                    .joined(separator: ",\n        ")
+                configurationJS += """
+                editor.updateDefaultTypescriptExtraLibs([
+                    \(libs)
+                ]);
+                """ + "\n"
+            }
+        }
+
+        if previousProfile?.jsCompilerOptions != profile.jsCompilerOptions {
+            let literal = tsOptionsLiteral(profile.jsCompilerOptions)
+            configurationJS += "editor.updateDefaultJavascriptCompilerOptions(\(literal));\n"
+        }
+
+        if previousProfile?.jsExtraLibs != profile.jsExtraLibs {
+            if profile.jsExtraLibs.isEmpty {
+                configurationJS += "editor.updateDefaultJavascriptExtraLibs([]);\n"
+            } else {
+                let libs = profile.jsExtraLibs
+                    .map { $0.toJavaScriptObjectLiteral() }
+                    .joined(separator: ",\n        ")
+                configurationJS += """
+                editor.updateDefaultJavascriptExtraLibs([
+                    \(libs)
+                ]);
+                """ + "\n"
+            }
+        }
+
+        if previousProfile?.fsSnapshot != profile.fsSnapshot {
+            if let snapshot = profile.fsSnapshot {
+                let data = try? JSONEncoder().encode(snapshot)
+                let json = data.flatMap { String(data: $0, encoding: .utf8) } ?? "null"
+                configurationJS += "editor.setFSSnapshot(\(json));\n"
+            } else {
+                configurationJS += "editor.setFSSnapshot(null);\n"
+            }
+        }
+
+        var languageIdToSet: String? = nil
         if let syntax = profile.syntax {
             switch syntax {
             case .monaco(let languageId):
-                languageOptionJS = ", language: '\(languageId)'"
+                languageIdToSet = languageId
 
             case .custom(let languageId, let configuration):
-                languageOptionJS = ", language: '\(languageId)'"
+                languageIdToSet = languageId
 
                 if !hasCreatedEditor || previousProfile?.syntax != profile.syntax {
-                    syntaxJS = """
+                    configurationJS += """
                     monaco.languages.register({ id: '\(languageId)' });
 
                     monaco.languages.setMonarchTokensProvider('\(languageId)', (function() {
@@ -158,50 +212,26 @@ final class MonacoEngine: NSObject {
             }
         }
 
-        var compilerJS = ""
-
-        func tsOptionsLiteral(_ opts: TypeScriptCompilerOptions?) -> String {
-            opts?.toJavaScriptObjectLiteral() ?? "{}"
-        }
-
-        if previousProfile?.tsCompilerOptions != profile.tsCompilerOptions {
-            let literal = tsOptionsLiteral(profile.tsCompilerOptions)
-            compilerJS += "editor.updateDefaultTypescriptCompilerOptions(\(literal));\n"
-        }
-
-        if previousProfile?.tsExtraLibs != profile.tsExtraLibs {
-            if profile.tsExtraLibs.isEmpty {
-                compilerJS += "editor.updateDefaultTypescriptExtraLibs([]);\n"
+        if previousProfile?.documentPath != profile.documentPath {
+            if let p = profile.documentPath {
+                let escaped = p
+                    .replacingOccurrences(of: "'", with: "\\'")
+                configurationJS += "editor.setDocumentPath('\(escaped)');\n"
             } else {
-                let libs = profile.tsExtraLibs
-                    .map { $0.toJavaScriptObjectLiteral() }
-                    .joined(separator: ",\n        ")
-                compilerJS += """
-                editor.updateDefaultTypescriptExtraLibs([
-                    \(libs)
-                ]);
-                """ + "\n"
+                configurationJS += "editor.setDocumentPath(null);\n"
             }
         }
 
-        if previousProfile?.jsCompilerOptions != profile.jsCompilerOptions {
-            let literal = tsOptionsLiteral(profile.jsCompilerOptions)
-            compilerJS += "editor.updateDefaultJavascriptCompilerOptions(\(literal));\n"
+        if let languageId = languageIdToSet {
+            if !hasCreatedEditor || previousProfile?.syntax != profile.syntax {
+                configurationJS += "editor.setLanguageId('\(languageId)');\n"
+            }
         }
 
-        if previousProfile?.jsExtraLibs != profile.jsExtraLibs {
-            if profile.jsExtraLibs.isEmpty {
-                compilerJS += "editor.updateDefaultJavascriptExtraLibs([]);\n"
-            } else {
-                let libs = profile.jsExtraLibs
-                    .map { $0.toJavaScriptObjectLiteral() }
-                    .joined(separator: ",\n        ")
-                compilerJS += """
-                editor.updateDefaultJavascriptExtraLibs([
-                    \(libs)
-                ]);
-                """ + "\n"
-            }
+        if lastText != text {
+            let b64 = text.data(using: .utf8)?.base64EncodedString() ?? ""
+            configurationJS += "editor.setText(atob('\(b64)'));\n"
+            lastText = text
         }
 
         var uiOptionsParts: [String] = []
@@ -238,51 +268,35 @@ final class MonacoEngine: NSObject {
             uiOptionsParts.append("theme: '\(effectiveThemeId)'")
         }
 
-        var editorOptionsCallJS = ""
         if !uiOptionsParts.isEmpty {
             let optionsObject = uiOptionsParts.joined(separator: ", ")
             if !hasCreatedEditor {
-                editorOptionsCallJS = """
-                editor.create({ automaticLayout: true\(languageOptionJS), \(optionsObject) });
-                """
+                configurationJS += "editor.create({ automaticLayout: true, \(optionsObject) });\n"
                 hasCreatedEditor = true
             } else {
-                editorOptionsCallJS = """
-                editor.updateOptions({ \(optionsObject) });
-                """
+                configurationJS += "editor.updateOptions({ \(optionsObject) });\n"
             }
         }
 
         lastProfile = profile
         lastThemeId = effectiveThemeId
 
-        var textJS = ""
-        if lastText != text {
-            let b64 = text.data(using: .utf8)?.base64EncodedString() ?? ""
-            textJS = "editor.setText(atob('\(b64)'));"
-            lastText = text
-        }
-
-        var visibilityJS = ""
         if lastVisible != visible {
-            visibilityJS = "document.body.style.opacity = '\(visible ? "1" : "0")';"
+            configurationJS += "document.body.style.opacity = '\(visible ? "1" : "0")';\n"
             lastVisible = visible
         }
 
-        let pieces = [syntaxJS, compilerJS, editorOptionsCallJS, textJS, visibilityJS]
-            .filter { !$0.isEmpty }
-            .joined(separator: "\n")
-        guard !pieces.isEmpty else { return nil }
+        guard !configurationJS.isEmpty else { return nil }
 
         let script: String
         if needMonaco {
             script = """
             editor.withMonaco(monaco => {
-            \(pieces)
+            \(configurationJS)
             });
             """
         } else {
-            script = pieces
+            script = configurationJS
         }
 
         return script

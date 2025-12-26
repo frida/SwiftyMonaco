@@ -76,6 +76,14 @@ public extension SwiftyMonaco {
 
 // MARK: - Modifiers
 public extension SwiftyMonaco {
+    func documentPath(_ path: String?) -> Self {
+        var copy = self
+        copy.profile.documentPath = path
+        return copy
+    }
+}
+
+public extension SwiftyMonaco {
     func syntaxHighlight(_ syntax: SyntaxHighlight) -> Self {
         var copy = self
         copy.profile.syntax = syntax
@@ -119,6 +127,14 @@ public extension SwiftyMonaco {
     func javascriptExtraLib(_ lib: String, named filePath: String) -> Self {
         var copy = self
         copy.profile.jsExtraLibs.append(MonacoExtraLib(lib, filePath: filePath))
+        return copy
+    }
+}
+
+public extension SwiftyMonaco {
+    func fsSnapshot(_ snapshot: MonacoFSSnapshot?) -> Self {
+        var copy = self
+        copy.profile.fsSnapshot = snapshot
         return copy
     }
 }

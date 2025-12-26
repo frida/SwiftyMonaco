@@ -4,6 +4,7 @@ import UIKit
 #endif
 
 public struct MonacoEditorProfile: Equatable {
+    public var documentPath: String?
     public var syntax: SyntaxHighlight?
 
     public var tsCompilerOptions: TypeScriptCompilerOptions?
@@ -11,6 +12,8 @@ public struct MonacoEditorProfile: Equatable {
 
     public var jsCompilerOptions: TypeScriptCompilerOptions?
     public var jsExtraLibs: [MonacoExtraLib]
+
+    public var fsSnapshot: MonacoFSSnapshot?
 
     public var minimap: Bool
     public var scrollbar: Bool
@@ -20,11 +23,13 @@ public struct MonacoEditorProfile: Equatable {
     public var theme: Theme?
 
     public init(
+        documentPath: String? = nil,
         syntax: SyntaxHighlight? = nil,
         tsCompilerOptions: TypeScriptCompilerOptions? = nil,
         tsExtraLibs: [MonacoExtraLib] = [],
         jsCompilerOptions: TypeScriptCompilerOptions? = nil,
         jsExtraLibs: [MonacoExtraLib] = [],
+        fsSnapshot: MonacoFSSnapshot? = nil,
         minimap: Bool = true,
         scrollbar: Bool = true,
         smoothCursor: Bool = false,
@@ -32,11 +37,13 @@ public struct MonacoEditorProfile: Equatable {
         fontSize: Int = 12,
         theme: Theme? = nil
     ) {
+        self.documentPath = documentPath
         self.syntax = syntax
         self.tsCompilerOptions = tsCompilerOptions
         self.tsExtraLibs = tsExtraLibs
         self.jsCompilerOptions = jsCompilerOptions
         self.jsExtraLibs = jsExtraLibs
+        self.fsSnapshot = fsSnapshot
         self.minimap = minimap
         self.scrollbar = scrollbar
         self.smoothCursor = smoothCursor
@@ -50,11 +57,21 @@ public struct MonacoEditorProfileBuilder {
     private var profile: MonacoEditorProfile
 
     public init() {
-        self.profile = MonacoEditorProfile()
+        self.init(from: MonacoEditorProfile())
+    }
+
+    public init(from profile: MonacoEditorProfile) {
+        self.profile = profile
     }
 
     public func build() -> MonacoEditorProfile {
         profile
+    }
+
+    public func documentPath(_ path: String?) -> Self {
+        var copy = self
+        copy.profile.documentPath = path
+        return copy
     }
 
     public func syntax(_ syntax: SyntaxHighlight?) -> Self {
@@ -84,6 +101,12 @@ public struct MonacoEditorProfileBuilder {
     public func javascriptExtraLibs(_ libs: [MonacoExtraLib]) -> Self {
         var copy = self
         copy.profile.jsExtraLibs = libs
+        return copy
+    }
+
+    public func fsSnapshot(_ snapshot: MonacoFSSnapshot?) -> Self {
+        var copy = self
+        copy.profile.fsSnapshot = snapshot
         return copy
     }
 
@@ -121,6 +144,30 @@ public struct MonacoEditorProfileBuilder {
         var copy = self
         copy.profile.theme = theme
         return copy
+    }
+}
+
+public struct MonacoFSSnapshot: Codable, Hashable {
+    public var version: Int
+    public var files: [MonacoFSSnapshotFile]
+
+    public init(version: Int, files: [MonacoFSSnapshotFile]) {
+        self.version = version
+        self.files = files
+    }
+
+    public func withVersion(_ v: Int) -> MonacoFSSnapshot {
+        MonacoFSSnapshot(version: v, files: files)
+    }
+}
+
+public struct MonacoFSSnapshotFile: Codable, Hashable {
+    public var path: String
+    public var text: String
+
+    public init(path: String, text: String) {
+        self.path = path
+        self.text = text
     }
 }
 
