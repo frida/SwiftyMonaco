@@ -46,6 +46,8 @@ class SwiftyMonacoTypeScriptWorker extends TypeScriptWorker {
                 current = parent;
             }
         }
+
+        this._languageService.cleanupSemanticCache();
     }
 
     getCurrentDirectory() {
