@@ -234,8 +234,12 @@ extension TypeScriptCompilerOptions {
 
 extension MonacoExtraLib {
     func toJavaScriptObjectLiteral() -> String {
-        let b64 = content.data(using: .utf8)!.base64EncodedString()
         let escapedPath = filePath.replacingOccurrences(of: "'", with: "\\'")
-        return "{ content: atob('\(b64)'), filePath: '\(escapedPath)' }"
+        return "{ content: \(javaScriptUTF8Decode(content)), filePath: '\(escapedPath)' }"
     }
+}
+
+func javaScriptUTF8Decode(_ text: String) -> String {
+    let b64 = text.data(using: .utf8)?.base64EncodedString() ?? ""
+    return "new TextDecoder().decode(Uint8Array.from(atob('\(b64)'), c => c.charCodeAt(0)))"
 }

@@ -135,7 +135,7 @@ class MonacoEditorHost {
         this.editor.onDidChangeModelContent(() => {
             const m = this.model;
             const text = m !== null ? m.getValue() : '';
-            window.webkit?.messageHandlers?.updateText?.postMessage(btoa(text));
+            window.webkit?.messageHandlers?.updateText?.postMessage(encodeUTF8Base64(text));
         });
     }
 
@@ -406,4 +406,12 @@ async function getClient(languageId, uri) {
 
     const workerAccessor = await getWorker();
     return await workerAccessor(uri);
+}
+
+function encodeUTF8Base64(text) {
+    let bin = '';
+    for (const b of new TextEncoder().encode(text)) {
+        bin += String.fromCharCode(b);
+    }
+    return btoa(bin);
 }

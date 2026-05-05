@@ -229,8 +229,7 @@ final class MonacoEngine: NSObject {
         }
 
         if lastText != text {
-            let b64 = text.data(using: .utf8)?.base64EncodedString() ?? ""
-            configurationJS += "editor.setText(atob('\(b64)'));\n"
+            configurationJS += "editor.setText(\(javaScriptUTF8Decode(text)));\n"
             lastText = text
         }
 
