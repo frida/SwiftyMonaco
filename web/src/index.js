@@ -27,10 +27,12 @@ const workerStateByLanguageId = createWorkerStateByLanguageId();
 
 class MonacoEditorHost {
     constructor() {
-        this.documentPath = null;
-        this.derivedDocumentPath = null;
-
         this.languageId = 'plaintext';
+
+        this.projectFileUris = new Set();
+
+        this.activePath = null;
+        this.derivedActivePath = null;
 
         this.model = null;
         this.pendingText = null;
@@ -61,21 +63,21 @@ class MonacoEditorHost {
         this.model.setValue(text);
     }
 
-    getEffectiveDocumentPath() {
-        if (this.documentPath !== null) {
-            return this.documentPath;
+    getEffectiveActivePath() {
+        if (this.activePath !== null) {
+            return this.activePath;
         }
 
-        if (this.derivedDocumentPath === null) {
-            this.derivedDocumentPath = defaultDocumentPathForLanguageId(this.languageId);
+        if (this.derivedActivePath === null) {
+            this.derivedActivePath = defaultActivePathForLanguageId(this.languageId);
         }
 
-        return this.derivedDocumentPath;
+        return this.derivedActivePath;
     }
 
-    setDocumentPath(pathOrNull) {
-        this.documentPath = pathOrNull;
-        this.derivedDocumentPath = null;
+    setActivePath(pathOrNull) {
+        this.activePath = pathOrNull;
+        this.derivedActivePath = null;
 
         if (this.editor !== null) {
             this.ensureModel();
@@ -91,31 +93,58 @@ class MonacoEditorHost {
     }
 
     ensureModel() {
-        const effectivePath = this.getEffectiveDocumentPath();
+        const effectivePath = this.getEffectiveActivePath();
         const uriString = `${WORKSPACE_ROOT_URI}${effectivePath}`;
         const uri = monaco.Uri.parse(uriString);
 
-        const existing = this.model;
-        const existingUriString = (existing !== null) ? existing.uri.toString() : null;
-
-        if (existing !== null && existingUriString === uriString && existing.getLanguageId() === this.languageId) {
-            return;
+        let target = monaco.editor.getModel(uri);
+        if (target === null) {
+            const value = (this.model !== null) ? this.model.getValue() : (this.pendingText ?? '');
+            target = monaco.editor.createModel(value, this.languageId, uri);
         }
-
-        const value = (existing !== null) ? existing.getValue() : (this.pendingText ?? '');
-        const model = monaco.editor.createModel(value, this.languageId, uri);
 
         this.pendingText = null;
 
-        if (existing !== null) {
-            existing.dispose();
+        if (this.model === target && (this.editor === null || this.editor.getModel() === target)) {
+            return;
         }
 
-        this.model = model;
+        const previous = this.model;
+        this.model = target;
 
         if (this.editor !== null) {
-            this.editor.setModel(model);
+            this.editor.setModel(target);
         }
+
+        if (previous !== null && previous !== target && !this.projectFileUris.has(previous.uri.toString())) {
+            previous.dispose();
+        }
+    }
+
+    setProjectFiles(files) {
+        const newUris = new Set();
+        for (const file of files) {
+            const uriString = `${WORKSPACE_ROOT_URI}${file.path}`;
+            newUris.add(uriString);
+            const uri = monaco.Uri.parse(uriString);
+            const languageId = file.languageId ?? defaultLanguageIdForPath(file.path);
+            const existing = monaco.editor.getModel(uri);
+            if (existing === null) {
+                monaco.editor.createModel(file.text, languageId, uri);
+            } else if (existing.getValue() !== file.text && existing !== this.model) {
+                existing.setValue(file.text);
+            }
+        }
+        for (const oldUriString of this.projectFileUris) {
+            if (newUris.has(oldUriString)) {
+                continue;
+            }
+            const m = monaco.editor.getModel(monaco.Uri.parse(oldUriString));
+            if (m !== null && m !== this.model) {
+                m.dispose();
+            }
+        }
+        this.projectFileUris = newUris;
     }
 
     create(options) {
@@ -136,6 +165,14 @@ class MonacoEditorHost {
             const m = this.model;
             const text = m !== null ? m.getValue() : '';
             window.webkit?.messageHandlers?.updateText?.postMessage(encodeUTF8Base64(text));
+        });
+
+        this.editor.onDidFocusEditorWidget(() => {
+            window.webkit?.messageHandlers?.focusState?.postMessage(true);
+        });
+
+        this.editor.onDidBlurEditorWidget(() => {
+            window.webkit?.messageHandlers?.focusState?.postMessage(false);
         });
     }
 
@@ -378,7 +415,7 @@ function languageIdForWorkerLabel(label) {
     }
 }
 
-function defaultDocumentPathForLanguageId(languageId) {
+function defaultActivePathForLanguageId(languageId) {
     switch (languageId) {
         case 'typescript':
             return 'main.ts';
@@ -388,6 +425,32 @@ function defaultDocumentPathForLanguageId(languageId) {
             return 'data.json';
         default:
             return 'main.txt';
+    }
+}
+
+function defaultLanguageIdForPath(path) {
+    const dot = path.lastIndexOf('.');
+    const ext = (dot === -1) ? '' : path.slice(dot + 1).toLowerCase();
+    switch (ext) {
+        case 'ts':
+        case 'tsx':
+        case 'mts':
+        case 'cts':
+            return 'typescript';
+        case 'js':
+        case 'jsx':
+        case 'mjs':
+        case 'cjs':
+            return 'javascript';
+        case 'json':
+            return 'json';
+        case 'css':
+            return 'css';
+        case 'html':
+        case 'htm':
+            return 'html';
+        default:
+            return 'plaintext';
     }
 }
 

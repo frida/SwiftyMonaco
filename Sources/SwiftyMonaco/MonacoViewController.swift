@@ -18,6 +18,7 @@ public class MonacoViewController: ViewController {
     var delegate: MonacoViewControllerDelegate?
 
     private(set) var engine: MonacoEngine!
+    private var pendingFocusRequest = false
 
     deinit {
         if engine != nil {
@@ -99,6 +100,41 @@ public class MonacoViewController: ViewController {
         #endif
     }
 
+    #if os(macOS)
+    public override func viewDidAppear() {
+        super.viewDidAppear()
+        applyPendingFocusIfNeeded()
+    }
+    #else
+    public override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        applyPendingFocusIfNeeded()
+    }
+    #endif
+
+    private func applyPendingFocusIfNeeded() {
+        guard pendingFocusRequest else { return }
+        pendingFocusRequest = false
+        applyFocus()
+    }
+
+    public func requestFocus() {
+        guard view.window != nil else {
+            pendingFocusRequest = true
+            return
+        }
+        applyFocus()
+    }
+
+    private func applyFocus() {
+        #if os(macOS)
+        view.window?.makeFirstResponder(view)
+        #else
+        view.becomeFirstResponder()
+        #endif
+        engine.requestFocus()
+    }
+
     public func topLevelSymbols() async -> [MonacoTopLevelSymbol] {
         await engine.topLevelSymbols()
     }
@@ -128,12 +164,17 @@ public protocol MonacoViewControllerDelegate {
     func monacoView(getProfile controller: MonacoViewController) -> MonacoEditorProfile
     func monacoView(readText controller: MonacoViewController) -> String
     func monacoView(controller: MonacoViewController, textDidChange: String)
+    func monacoView(controller: MonacoViewController, didChangeFocus isFocused: Bool)
     func monacoView(controller: MonacoViewController, didReceiveConsoleMessage message: MonacoConsoleMessage)
 }
 
 extension MonacoViewController: MonacoEngineDelegate {
     func monacoEngine(_ engine: MonacoEngine, didChangeText text: String) {
         delegate?.monacoView(controller: self, textDidChange: text)
+    }
+
+    func monacoEngine(_ engine: MonacoEngine, didChangeFocus isFocused: Bool) {
+        delegate?.monacoView(controller: self, didChangeFocus: isFocused)
     }
 
     func monacoEngine(_ engine: MonacoEngine, didReceiveConsoleMessage message: MonacoConsoleMessage) {

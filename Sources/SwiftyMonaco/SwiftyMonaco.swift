@@ -16,6 +16,7 @@ typealias ViewControllerRepresentable = UIViewControllerRepresentable
 public struct SwiftyMonaco: ViewControllerRepresentable {
     var text: Binding<String>
     var profile: MonacoEditorProfile
+    var _focusBinding: Binding<Bool>? = nil
     var _introspector: MonacoIntrospector? = nil
 
     public init(text: Binding<String>, profile: MonacoEditorProfile = MonacoEditorProfile()) {
@@ -65,6 +66,12 @@ public struct SwiftyMonaco: ViewControllerRepresentable {
             coordinator.lastKnownProfile = newProfile
             viewController.reconfigure()
         }
+
+        let newFocusValue = _focusBinding?.wrappedValue ?? false
+        if newFocusValue, !coordinator.lastFocusValue {
+            viewController.requestFocus()
+        }
+        coordinator.lastFocusValue = newFocusValue
     }
 }
 
@@ -76,14 +83,6 @@ public extension SwiftyMonaco {
 
 // MARK: - Modifiers
 public extension SwiftyMonaco {
-    func documentPath(_ path: String?) -> Self {
-        var copy = self
-        copy.profile.documentPath = path
-        return copy
-    }
-}
-
-public extension SwiftyMonaco {
     func syntaxHighlight(_ syntax: SyntaxHighlight) -> Self {
         var copy = self
         copy.profile.syntax = syntax
@@ -92,9 +91,17 @@ public extension SwiftyMonaco {
 }
 
 public extension SwiftyMonaco {
-    public func introspector(_ introspector: MonacoIntrospector) -> Self {
+    func projectFiles(_ files: [MonacoProjectFile]) -> Self {
         var copy = self
-        copy._introspector = introspector
+        copy.profile.projectFiles = files
+        return copy
+    }
+}
+
+public extension SwiftyMonaco {
+    func activePath(_ path: String?) -> Self {
+        var copy = self
+        copy.profile.activePath = path
         return copy
     }
 }
@@ -135,6 +142,22 @@ public extension SwiftyMonaco {
     func fsSnapshot(_ snapshot: MonacoFSSnapshot?) -> Self {
         var copy = self
         copy.profile.fsSnapshot = snapshot
+        return copy
+    }
+}
+
+public extension SwiftyMonaco {
+    func focused(_ binding: Binding<Bool>) -> Self {
+        var copy = self
+        copy._focusBinding = binding
+        return copy
+    }
+}
+
+public extension SwiftyMonaco {
+    public func introspector(_ introspector: MonacoIntrospector) -> Self {
+        var copy = self
+        copy._introspector = introspector
         return copy
     }
 }
@@ -219,6 +242,7 @@ public class Coordinator: NSObject, MonacoViewControllerDelegate {
     var parent: SwiftyMonaco
     var lastKnownText: String
     var lastKnownProfile: MonacoEditorProfile
+    var lastFocusValue: Bool = false
 
     init(_ parent: SwiftyMonaco) {
         self.parent = parent
@@ -241,6 +265,10 @@ public class Coordinator: NSObject, MonacoViewControllerDelegate {
     public func monacoView(controller: MonacoViewController, textDidChange text: String) {
         lastKnownText = text
         parent.text.wrappedValue = text
+    }
+
+    public func monacoView(controller: MonacoViewController, didChangeFocus isFocused: Bool) {
+        parent._focusBinding?.wrappedValue = isFocused
     }
 
     public func monacoView(controller: MonacoViewController,

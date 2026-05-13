@@ -4,8 +4,9 @@ import UIKit
 #endif
 
 public struct MonacoEditorProfile: Equatable {
-    public var documentPath: String?
     public var syntax: SyntaxHighlight?
+    public var projectFiles: [MonacoProjectFile]
+    public var activePath: String?
 
     public var tsCompilerOptions: TypeScriptCompilerOptions?
     public var tsExtraLibs: [MonacoExtraLib]
@@ -23,8 +24,9 @@ public struct MonacoEditorProfile: Equatable {
     public var theme: Theme?
 
     public init(
-        documentPath: String? = nil,
         syntax: SyntaxHighlight? = nil,
+        projectFiles: [MonacoProjectFile] = [],
+        activePath: String? = nil,
         tsCompilerOptions: TypeScriptCompilerOptions? = nil,
         tsExtraLibs: [MonacoExtraLib] = [],
         jsCompilerOptions: TypeScriptCompilerOptions? = nil,
@@ -37,8 +39,9 @@ public struct MonacoEditorProfile: Equatable {
         fontSize: Int = 12,
         theme: Theme? = nil
     ) {
-        self.documentPath = documentPath
         self.syntax = syntax
+        self.projectFiles = projectFiles
+        self.activePath = activePath
         self.tsCompilerOptions = tsCompilerOptions
         self.tsExtraLibs = tsExtraLibs
         self.jsCompilerOptions = jsCompilerOptions
@@ -68,15 +71,21 @@ public struct MonacoEditorProfileBuilder {
         profile
     }
 
-    public func documentPath(_ path: String?) -> Self {
-        var copy = self
-        copy.profile.documentPath = path
-        return copy
-    }
-
     public func syntax(_ syntax: SyntaxHighlight?) -> Self {
         var copy = self
         copy.profile.syntax = syntax
+        return copy
+    }
+
+    public func projectFiles(_ files: [MonacoProjectFile]) -> Self {
+        var copy = self
+        copy.profile.projectFiles = files
+        return copy
+    }
+
+    public func activePath(_ path: String?) -> Self {
+        var copy = self
+        copy.profile.activePath = path
         return copy
     }
 
@@ -144,6 +153,30 @@ public struct MonacoEditorProfileBuilder {
         var copy = self
         copy.profile.theme = theme
         return copy
+    }
+}
+
+public struct MonacoProjectFile: Equatable, Hashable {
+    public let path: String
+    public let text: String
+    public let languageId: String?
+
+    public init(path: String, text: String, languageId: String? = nil) {
+        self.path = path
+        self.text = text
+        self.languageId = languageId
+    }
+}
+
+extension MonacoProjectFile {
+    func toJavaScriptObjectLiteral() -> String {
+        let escapedPath = path.replacingOccurrences(of: "'", with: "\\'")
+        var parts = ["path: '\(escapedPath)'", "text: \(javaScriptUTF8Decode(text))"]
+        if let languageId {
+            let escapedLang = languageId.replacingOccurrences(of: "'", with: "\\'")
+            parts.append("languageId: '\(escapedLang)'")
+        }
+        return "{ \(parts.joined(separator: ", ")) }"
     }
 }
 

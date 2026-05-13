@@ -77,17 +77,81 @@ class SwiftyMonacoTypeScriptWorker extends TypeScriptWorker {
     }
 
     directoryExists(path) {
-        return snapshotDirectoryExists(path);
+        const dir = normalizeDirUri(path);
+        if (snapshotDirs.has(dir)) {
+            return true;
+        }
+        return this._mirrorModelDirs().has(dir);
     }
 
     getDirectories(path) {
         const dir = normalizeDirUri(path);
-        const { directories } = snapshotGetFileSystemEntries(dir);
+        const { directories } = this._getFileSystemEntries(dir);
         return directories.map((name) => joinUri(dir, name));
     }
 
     readDirectory(path, extensions, excludes, includes, depth) {
-        return snapshotReadDirectoryUsingTSMatchFiles(path, extensions, excludes, includes, depth);
+        const dir = normalizeDirUri(path);
+        return ts.matchFiles(
+            dir,
+            extensions,
+            excludes,
+            includes,
+            true,
+            dir,
+            depth,
+            (d) => this._getFileSystemEntries(d),
+            (p) => p
+        );
+    }
+
+    _getFileSystemEntries(dirUri) {
+        const dir = normalizeDirUri(dirUri);
+        const snapshot = snapshotGetFileSystemEntries(dir);
+        const seenFiles = new Set(snapshot.files);
+        const seenDirs = new Set(snapshot.directories);
+        const files = [...snapshot.files];
+        const directories = [...snapshot.directories];
+
+        for (const model of this._ctx.getMirrorModels()) {
+            const uri = model.uri.toString();
+            if (!uri.startsWith(dir)) {
+                continue;
+            }
+            const rest = uri.slice(dir.length);
+            const slash = rest.indexOf('/');
+            if (slash === -1) {
+                if (!seenFiles.has(rest)) {
+                    seenFiles.add(rest);
+                    files.push(rest);
+                }
+            } else {
+                const childDir = rest.slice(0, slash);
+                if (!seenDirs.has(childDir)) {
+                    seenDirs.add(childDir);
+                    directories.push(childDir);
+                }
+            }
+        }
+
+        return { files, directories };
+    }
+
+    _mirrorModelDirs() {
+        const dirs = new Set();
+        for (const model of this._ctx.getMirrorModels()) {
+            const uri = model.uri.toString();
+            let cursor = parentDirUri(uri);
+            while (cursor !== WORKSPACE_ROOT_URI) {
+                if (dirs.has(cursor)) {
+                    break;
+                }
+                dirs.add(cursor);
+                cursor = parentDirUri(cursor.slice(0, -1));
+            }
+            dirs.add(WORKSPACE_ROOT_URI);
+        }
+        return dirs;
     }
 }
 

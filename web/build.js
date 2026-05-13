@@ -3,6 +3,7 @@ import inlineWorkerPlugin from 'esbuild-plugin-inline-worker';
 
 const outFile = new URL('../Sources/SwiftyMonaco/_Resources/app.js', import.meta.url).pathname;
 const isDev = process.env.NODE_ENV === 'development';
+const isWatch = process.argv.includes('--watch');
 
 const target = ['safari18'];
 
@@ -32,13 +33,13 @@ const commonConfig = {
 };
 
 async function build() {
-  if (isDev) {
+  if (isWatch) {
     const ctx = await esbuild.context(commonConfig);
     await ctx.watch();
-    console.log('👀 Dev mode: watching for changes...');
+    console.log('👀 Watching for changes...');
   } else {
     await esbuild.build(commonConfig);
-    console.log('✅ Production build complete');
+    console.log(isDev ? '✅ Dev build complete (sourcemaps, not minified)' : '✅ Production build complete');
   }
 }
 

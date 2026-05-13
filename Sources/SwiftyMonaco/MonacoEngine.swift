@@ -42,6 +42,7 @@ final class MonacoEngine: NSObject {
         super.init()
 
         contentController.add(UpdateTextScriptHandler(self), name: "updateText")
+        contentController.add(FocusStateScriptHandler(self), name: "focusState")
         contentController.add(TopLevelSymbolsScriptHandler(self), name: "topLevelSymbols")
         contentController.add(ConsoleScriptHandler(self), name: "console")
     }
@@ -79,6 +80,10 @@ final class MonacoEngine: NSObject {
 
     func noteExternalTextChange(_ text: String) {
         lastText = text
+    }
+
+    func requestFocus() {
+        webView.evaluateJavaScript("window.editor.focus();", in: nil, in: WKContentWorld.page, completionHandler: nil)
     }
 
     func topLevelSymbols() async -> [MonacoTopLevelSymbol] {
@@ -140,6 +145,59 @@ final class MonacoEngine: NSObject {
             opts?.toJavaScriptObjectLiteral() ?? "{}"
         }
 
+        var languageIdToSet: String? = nil
+        if let syntax = profile.syntax {
+            switch syntax {
+            case .monaco(let languageId):
+                languageIdToSet = languageId
+
+            case .custom(let languageId, let configuration):
+                languageIdToSet = languageId
+
+                if !hasCreatedEditor || previousProfile?.syntax != profile.syntax {
+                    configurationJS += """
+                    monaco.languages.register({ id: '\(languageId)' });
+
+                    monaco.languages.setMonarchTokensProvider('\(languageId)', (function() {
+                        \(configuration)
+                    })());
+                    """
+                    needMonaco = true
+                }
+            }
+        }
+
+        if let languageId = languageIdToSet {
+            if !hasCreatedEditor || previousProfile?.syntax != profile.syntax {
+                configurationJS += "editor.setLanguageId('\(languageId)');\n"
+            }
+        }
+
+        if previousProfile?.projectFiles != profile.projectFiles {
+            if profile.projectFiles.isEmpty {
+                configurationJS += "editor.setProjectFiles([]);\n"
+            } else {
+                let payload = profile.projectFiles
+                    .map { $0.toJavaScriptObjectLiteral() }
+                    .joined(separator: ",\n        ")
+                configurationJS += """
+                editor.setProjectFiles([
+                    \(payload)
+                ]);
+                """ + "\n"
+            }
+        }
+
+        if previousProfile?.activePath != profile.activePath {
+            if let p = profile.activePath {
+                let escaped = p
+                    .replacingOccurrences(of: "'", with: "\\'")
+                configurationJS += "editor.setActivePath('\(escaped)');\n"
+            } else {
+                configurationJS += "editor.setActivePath(null);\n"
+            }
+        }
+
         if previousProfile?.tsCompilerOptions != profile.tsCompilerOptions {
             let literal = tsOptionsLiteral(profile.tsCompilerOptions)
             configurationJS += "editor.updateDefaultTypescriptCompilerOptions(\(literal));\n"
@@ -187,44 +245,6 @@ final class MonacoEngine: NSObject {
                 configurationJS += "editor.setFSSnapshot(\(json));\n"
             } else {
                 configurationJS += "editor.setFSSnapshot(null);\n"
-            }
-        }
-
-        var languageIdToSet: String? = nil
-        if let syntax = profile.syntax {
-            switch syntax {
-            case .monaco(let languageId):
-                languageIdToSet = languageId
-
-            case .custom(let languageId, let configuration):
-                languageIdToSet = languageId
-
-                if !hasCreatedEditor || previousProfile?.syntax != profile.syntax {
-                    configurationJS += """
-                    monaco.languages.register({ id: '\(languageId)' });
-
-                    monaco.languages.setMonarchTokensProvider('\(languageId)', (function() {
-                        \(configuration)
-                    })());
-                    """
-                    needMonaco = true
-                }
-            }
-        }
-
-        if previousProfile?.documentPath != profile.documentPath {
-            if let p = profile.documentPath {
-                let escaped = p
-                    .replacingOccurrences(of: "'", with: "\\'")
-                configurationJS += "editor.setDocumentPath('\(escaped)');\n"
-            } else {
-                configurationJS += "editor.setDocumentPath(null);\n"
-            }
-        }
-
-        if let languageId = languageIdToSet {
-            if !hasCreatedEditor || previousProfile?.syntax != profile.syntax {
-                configurationJS += "editor.setLanguageId('\(languageId)');\n"
             }
         }
 
@@ -304,6 +324,7 @@ final class MonacoEngine: NSObject {
 
 protocol MonacoEngineDelegate: AnyObject {
     func monacoEngine(_ engine: MonacoEngine, didChangeText text: String)
+    func monacoEngine(_ engine: MonacoEngine, didChangeFocus isFocused: Bool)
     func monacoEngine(_ engine: MonacoEngine, didReceiveConsoleMessage message: MonacoConsoleMessage)
 }
 
@@ -356,6 +377,27 @@ private extension MonacoEngine {
 
             engine.noteExternalTextChange(text)
             engine.delegate?.monacoEngine(engine, didChangeText: text)
+        }
+    }
+}
+
+private extension MonacoEngine {
+    final class FocusStateScriptHandler: NSObject, WKScriptMessageHandler {
+        private unowned let engine: MonacoEngine
+
+        init(_ engine: MonacoEngine) {
+            self.engine = engine
+        }
+
+        func userContentController(
+            _ userContentController: WKUserContentController,
+            didReceive message: WKScriptMessage
+        ) {
+            guard let isFocused = message.body as? Bool else {
+                fatalError("Unexpected message body")
+            }
+
+            engine.delegate?.monacoEngine(engine, didChangeFocus: isFocused)
         }
     }
 }
@@ -423,6 +465,14 @@ private extension MonacoEngine {
 
             window.onunhandledrejection = event => {
                 const reason = event.reason ?? {};
+                // Monaco contributions throw CancellationError to abort pending
+                // operations whenever the editor's model swaps (e.g. when a
+                // pooled engine takes on a new active file). Same predicate as
+                // VS Code's isCancellationError in src/vs/base/common/errors.ts.
+                if (reason.name === 'Canceled' || reason.message === 'Canceled') {
+                    event.preventDefault();
+                    return;
+                }
                 send('unhandledRejection', [reason.message ?? String(reason), reason.stack ?? null]);
             };
 
