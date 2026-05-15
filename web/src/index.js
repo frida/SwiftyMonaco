@@ -25,6 +25,20 @@ const LANGUAGE_IDS = ['typescript', 'javascript'];
 
 const workerStateByLanguageId = createWorkerStateByLanguageId();
 
+const SEMANTIC_TOKEN_LEGEND = {
+    tokenTypes: [
+        'class', 'enum', 'interface', 'namespace', 'typeParameter', 'type',
+        'parameter', 'property', 'variable', 'enumMember', 'function', 'member',
+    ],
+    tokenModifiers: [
+        'declaration', 'static', 'async', 'readonly', 'defaultLibrary', 'local',
+    ],
+};
+
+for (const languageId of LANGUAGE_IDS) {
+    registerSemanticTokensProvider(languageId);
+}
+
 class MonacoEditorHost {
     constructor() {
         this.languageId = 'plaintext';
@@ -152,6 +166,9 @@ class MonacoEditorHost {
 
         const baseOptions = {
             automaticLayout: true,
+            'semanticHighlighting.enabled': true,
+            overviewRulerLanes: 0,
+            overviewRulerBorder: false,
         };
 
         this.editor = monaco.editor.create(
@@ -371,6 +388,53 @@ window.MonacoEnvironment = {
 };
 
 window.editor = new MonacoEditorHost();
+
+function registerSemanticTokensProvider(languageId) {
+    monaco.languages.registerDocumentSemanticTokensProvider(languageId, {
+        getLegend() {
+            return SEMANTIC_TOKEN_LEGEND;
+        },
+        async provideDocumentSemanticTokens(model) {
+            const client = await getClient(languageId, model.uri);
+            const classifications = await client.getEncodedSemanticClassifications(
+                model.uri.toString(),
+                0,
+                model.getValueLength(),
+                '2020',
+            );
+            if (!classifications || !classifications.spans) {
+                return null;
+            }
+
+            const spans = classifications.spans;
+            const data = new Uint32Array((spans.length / 3) * 5);
+            let writeIndex = 0;
+            let prevLine = 0;
+            let prevChar = 0;
+            for (let i = 0; i < spans.length; i += 3) {
+                const offset = spans[i];
+                const length = spans[i + 1];
+                const encoded = spans[i + 2];
+                const tokenType = encoded >> 8;
+                const tokenModifierBitset = encoded & 0xFF;
+                const position = model.getPositionAt(offset);
+                const line = position.lineNumber - 1;
+                const character = position.column - 1;
+                const deltaLine = line - prevLine;
+                const deltaChar = deltaLine === 0 ? character - prevChar : character;
+                data[writeIndex++] = deltaLine;
+                data[writeIndex++] = deltaChar;
+                data[writeIndex++] = length;
+                data[writeIndex++] = tokenType;
+                data[writeIndex++] = tokenModifierBitset;
+                prevLine = line;
+                prevChar = character;
+            }
+            return { data };
+        },
+        releaseDocumentSemanticTokens() {},
+    });
+}
 
 function createWorkerStateByLanguageId() {
     const state = {};

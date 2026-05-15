@@ -90,6 +90,14 @@ class SwiftyMonacoTypeScriptWorker extends TypeScriptWorker {
         return directories.map((name) => joinUri(dir, name));
     }
 
+    async getEncodedSemanticClassifications(fileName, start, length, format) {
+        return this._languageService.getEncodedSemanticClassifications(
+            fileName,
+            { start, length },
+            format,
+        );
+    }
+
     readDirectory(path, extensions, excludes, includes, depth) {
         const dir = normalizeDirUri(path);
         return ts.matchFiles(
