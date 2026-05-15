@@ -253,14 +253,15 @@ final class MonacoEngine: NSObject {
             lastText = text
         }
 
+        if previousProfile?.customThemes != profile.customThemes {
+            for theme in profile.customThemes {
+                configurationJS += "editor.defineTheme(\(theme.toJavaScriptArguments()));\n"
+            }
+        }
+
         var uiOptionsParts: [String] = []
 
-        let effectiveThemeId: String = {
-            switch profile.theme ?? Theme.detectSystemDefault() {
-            case .light: return "vs"
-            case .dark:  return "vs-dark"
-            }
-        }()
+        let effectiveThemeId = (profile.theme ?? Theme.detectSystemDefault()).name
 
         if !hasCreatedEditor || previousProfile?.minimap != profile.minimap {
             uiOptionsParts.append("minimap: { enabled: \(profile.minimap) }")

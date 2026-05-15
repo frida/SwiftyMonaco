@@ -22,6 +22,7 @@ public struct MonacoEditorProfile: Equatable {
     public var cursorBlink: CursorBlink
     public var fontSize: Int
     public var theme: Theme?
+    public var customThemes: [MonacoCustomTheme]
 
     public init(
         syntax: SyntaxHighlight? = nil,
@@ -37,7 +38,8 @@ public struct MonacoEditorProfile: Equatable {
         smoothCursor: Bool = false,
         cursorBlink: CursorBlink = .blink,
         fontSize: Int = 12,
-        theme: Theme? = nil
+        theme: Theme? = nil,
+        customThemes: [MonacoCustomTheme] = []
     ) {
         self.syntax = syntax
         self.projectFiles = projectFiles
@@ -53,6 +55,7 @@ public struct MonacoEditorProfile: Equatable {
         self.cursorBlink = cursorBlink
         self.fontSize = fontSize
         self.theme = theme
+        self.customThemes = customThemes
     }
 }
 
@@ -154,6 +157,12 @@ public struct MonacoEditorProfileBuilder {
         copy.profile.theme = theme
         return copy
     }
+
+    public func customThemes(_ themes: [MonacoCustomTheme]) -> Self {
+        var copy = self
+        copy.profile.customThemes = themes
+        return copy
+    }
 }
 
 public struct MonacoProjectFile: Equatable, Hashable {
@@ -178,6 +187,30 @@ extension MonacoProjectFile {
         }
         return "{ \(parts.joined(separator: ", ")) }"
     }
+}
+
+extension MonacoCustomTheme {
+    func toJavaScriptArguments() -> String {
+        let escapedName = name.replacingOccurrences(of: "'", with: "\\'")
+        let rulesJSON = encodeJSON(rules.map(\.jsonRepresentation))
+        let colorsJSON = encodeJSON(colors)
+        return "'\(escapedName)', { base: '\(base.rawValue)', inherit: \(inherit), rules: \(rulesJSON), colors: \(colorsJSON) }"
+    }
+}
+
+extension MonacoTokenRule {
+    var jsonRepresentation: [String: String] {
+        var dict: [String: String] = ["token": token]
+        if let foreground { dict["foreground"] = foreground }
+        if let background { dict["background"] = background }
+        if let fontStyle { dict["fontStyle"] = fontStyle }
+        return dict
+    }
+}
+
+private func encodeJSON(_ value: Any) -> String {
+    let data = try! JSONSerialization.data(withJSONObject: value, options: [.sortedKeys])
+    return String(data: data, encoding: .utf8)!
 }
 
 public struct MonacoFSSnapshot: Codable, Hashable {
@@ -209,7 +242,10 @@ public enum CursorBlink: Equatable {
 }
 
 public enum Theme: Equatable {
-    case light, dark
+    case named(String)
+
+    public static let light: Theme = .named("vs")
+    public static let dark: Theme = .named("vs-dark")
 
     static func detectSystemDefault() -> Theme {
         #if os(macOS)
@@ -217,5 +253,54 @@ public enum Theme: Equatable {
         #else
         return (UITraitCollection.current.userInterfaceStyle == .dark) ? .dark : .light
         #endif
+    }
+
+    public var name: String {
+        switch self {
+        case .named(let name): return name
+        }
+    }
+}
+
+public struct MonacoCustomTheme: Equatable {
+    public var name: String
+    public var base: MonacoBaseTheme
+    public var inherit: Bool
+    public var rules: [MonacoTokenRule]
+    public var colors: [String: String]
+
+    public init(
+        name: String,
+        base: MonacoBaseTheme,
+        inherit: Bool = true,
+        rules: [MonacoTokenRule] = [],
+        colors: [String: String] = [:]
+    ) {
+        self.name = name
+        self.base = base
+        self.inherit = inherit
+        self.rules = rules
+        self.colors = colors
+    }
+}
+
+public enum MonacoBaseTheme: String, Equatable {
+    case vs
+    case vsDark = "vs-dark"
+    case hcLight = "hc-light"
+    case hcBlack = "hc-black"
+}
+
+public struct MonacoTokenRule: Equatable {
+    public var token: String
+    public var foreground: String?
+    public var background: String?
+    public var fontStyle: String?
+
+    public init(token: String, foreground: String? = nil, background: String? = nil, fontStyle: String? = nil) {
+        self.token = token
+        self.foreground = foreground
+        self.background = background
+        self.fontStyle = fontStyle
     }
 }

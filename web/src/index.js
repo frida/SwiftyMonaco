@@ -180,6 +180,10 @@ class MonacoEditorHost {
         this.editor.updateOptions(options);
     }
 
+    defineTheme(name, data) {
+        monaco.editor.defineTheme(name, data);
+    }
+
     updateDefaultTypescriptCompilerOptions(options) {
         typescript.typescriptDefaults.setCompilerOptions({ ...defaultTypescriptCompilerOptions, ...options });
     }
