@@ -1,4 +1,5 @@
 import Foundation
+import MonacoWebBundle
 import WebKit
 
 final class MonacoEngine: NSObject {
@@ -112,7 +113,7 @@ final class MonacoEngine: NSObject {
 
             if webView.url == nil {
                 webView.navigationDelegate = self
-                webView.load(URLRequest(url: Bundle.module.url(forResource: "index", withExtension: "html", subdirectory: "_Resources")!))
+                webView.load(URLRequest(url: MonacoWebBundle.indexURL))
             }
         }
     }
