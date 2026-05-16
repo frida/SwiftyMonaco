@@ -407,30 +407,37 @@ function registerSemanticTokensProvider(languageId) {
             }
 
             const spans = classifications.spans;
-            const data = new Uint32Array((spans.length / 3) * 5);
-            let writeIndex = 0;
+            const data = [];
             let prevLine = 0;
             let prevChar = 0;
             for (let i = 0; i < spans.length; i += 3) {
                 const offset = spans[i];
-                const length = spans[i + 1];
+                const totalLength = spans[i + 1];
                 const encoded = spans[i + 2];
                 const tokenType = encoded >> 8;
                 const tokenModifierBitset = encoded & 0xFF;
-                const position = model.getPositionAt(offset);
-                const line = position.lineNumber - 1;
-                const character = position.column - 1;
-                const deltaLine = line - prevLine;
-                const deltaChar = deltaLine === 0 ? character - prevChar : character;
-                data[writeIndex++] = deltaLine;
-                data[writeIndex++] = deltaChar;
-                data[writeIndex++] = length;
-                data[writeIndex++] = tokenType;
-                data[writeIndex++] = tokenModifierBitset;
-                prevLine = line;
-                prevChar = character;
+                const startPosition = model.getPositionAt(offset);
+                const endPosition = model.getPositionAt(offset + totalLength);
+
+                for (let lineNumber = startPosition.lineNumber; lineNumber <= endPosition.lineNumber; lineNumber++) {
+                    const lineMaxColumn = model.getLineMaxColumn(lineNumber);
+                    const startColumn = lineNumber === startPosition.lineNumber ? startPosition.column : 1;
+                    const endColumn = lineNumber === endPosition.lineNumber ? endPosition.column : lineMaxColumn;
+                    const length = endColumn - startColumn;
+                    if (length === 0) {
+                        continue;
+                    }
+
+                    const line = lineNumber - 1;
+                    const character = startColumn - 1;
+                    const deltaLine = line - prevLine;
+                    const deltaChar = deltaLine === 0 ? character - prevChar : character;
+                    data.push(deltaLine, deltaChar, length, tokenType, tokenModifierBitset);
+                    prevLine = line;
+                    prevChar = character;
+                }
             }
-            return { data };
+            return { data: new Uint32Array(data) };
         },
         releaseDocumentSemanticTokens() {},
     });
