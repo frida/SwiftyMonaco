@@ -1,7 +1,7 @@
 import esbuild from 'esbuild';
 import inlineWorkerPlugin from 'esbuild-plugin-inline-worker';
 
-const outFile = new URL('../Sources/SwiftyMonaco/_Resources/app.js', import.meta.url).pathname;
+const outFile = new URL('../Sources/MonacoWebBundle/Resources/app.js', import.meta.url).pathname;
 const isDev = process.env.NODE_ENV === 'development';
 const isWatch = process.argv.includes('--watch');
 
