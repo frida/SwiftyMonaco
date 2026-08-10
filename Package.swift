@@ -24,7 +24,7 @@ let package = Package(
         .target(
             name: "MonacoWebBundle",
             resources: [
-                .copy("Resources"),
+                .copy("Monaco"),
             ]),
         .target(
             name: "SwiftyMonaco",
